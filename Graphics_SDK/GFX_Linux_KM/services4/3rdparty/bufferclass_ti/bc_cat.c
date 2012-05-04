@@ -38,6 +38,10 @@
 #include <linux/slab.h>
 #include <linux/dma-mapping.h>
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0))
+#include <plat/cpu.h>
+#endif
+
 #define DEVNAME             "bccat"
 #define DRVNAME             DEVNAME
 #define DEVICE_COUNT        1
