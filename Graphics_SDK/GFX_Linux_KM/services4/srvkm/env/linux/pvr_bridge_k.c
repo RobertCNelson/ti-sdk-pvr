@@ -382,11 +382,14 @@ PVRSRV_BridgeDispatchKM(struct file *pFile, unsigned int unref__ ioctlCmd, unsig
 				(PVRSRV_BRIDGE_OUT_EXPORTDEVICEMEM *)psBridgePackageKM->pvParamOut;
 			PVRSRV_FILE_PRIVATE_DATA *psPrivateData = PRIVATE_DATA(pFile);
 
-			psPrivateData->hKernelMemInfo = psExportDeviceMemOUT->hMemInfo;
+			if (pvr_get_user(psPrivateData->hKernelMemInfo, &psExportDeviceMemOUT->hMemInfo) != 0)
+			{
+				err = -EFAULT;
+				goto unlock_and_return;
+			}
 #if defined(SUPPORT_MEMINFO_IDS)
 			psPrivateData->ui64Stamp = ++ui64Stamp;
 
-			psExportDeviceMemOUT->ui64Stamp = psPrivateData->ui64Stamp;
 			if (pvr_put_user(psPrivateData->ui64Stamp, &psExportDeviceMemOUT->ui64Stamp) != 0)
 			{
 				err = -EFAULT;

@@ -53,26 +53,26 @@
 #if !defined(LDM_PLATFORM)
 #error "LDM_PLATFORM must be set"
 #endif
-/*#define	PVR_LINUX_DYNAMIC_SGX_RESOURCE_INFO*/
-//#include <linux/platform_device.h>
+#define	PVR_LINUX_DYNAMIC_SGX_RESOURCE_INFO
+#include <linux/platform_device.h>
 #endif
 
 #if ((defined(DEBUG) || defined(TIMING)) && \
-    (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32))) && \
+    (LINUX_VERSION_CODE == KERNEL_VERSION(2,6,34))) && \
     !defined(PVR_NO_OMAP_TIMER)
-#define	PVR_OMAP3_TIMING_PRCM
+#define	PVR_OMAP4_TIMING_PRCM
 #endif
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,35))
-/*#include <plat/gpu.h>*/
+#include <plat/gpu.h>
 #if !defined(PVR_NO_OMAP_TIMER)
-/*#define	PVR_OMAP_USE_DM_TIMER_API*/
-//#include <plat/dmtimer.h>
+#define	PVR_OMAP_USE_DM_TIMER_API
+#include <plat/dmtimer.h>
 #endif
 #endif
 
 #if !defined(PVR_NO_OMAP_TIMER)
-//#define PVR_OMAP_TIMER_BASE_IN_SYS_SPEC_DATA
+#define PVR_OMAP_TIMER_BASE_IN_SYS_SPEC_DATA
 #endif
 #endif
 
@@ -84,7 +84,7 @@
 
 #if defined(__linux__)
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,35)) && defined(SGX_OCP_REGS_ENABLED)
-/*#define SGX_OCP_NO_INT_BYPASS*/
+#define SGX_OCP_NO_INT_BYPASS
 #endif
 #endif
 
@@ -149,10 +149,6 @@ typedef struct _SYS_SPECIFIC_DATA_TAG_
 	atomic_t	sNotifyLockCPU;
 	IMG_BOOL	bCallVDD2PostFunc;
 #endif
-	struct clk      *psCORE_CK;
-        struct clk      *psSGX_FCK;
-        struct clk      *psSGX_ICK;
-
 #if defined(DEBUG) || defined(TIMING)
 	struct clk	*psGPT11_FCK;
 	struct clk	*psGPT11_ICK;

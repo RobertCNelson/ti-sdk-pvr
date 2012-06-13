@@ -1,6 +1,6 @@
 /**********************************************************************
  *
- * Copyright(c) 2008 Imagination Technologies Ltd. All rights reserved.
+ * Copyright(c) Imagination Technologies Ltd. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -807,8 +807,11 @@ static IMG_BOOL ProcessFlip(IMG_HANDLE  hCmdCookie,
 	{
 		psBuffer->hCmdComplete = (OMAPLFB_HANDLE)hCmdCookie;
 		psBuffer->ulSwapInterval = (unsigned long)psFlipCmd->ui32SwapInterval;
-
+#if defined(NO_HARDWARE)
+		psDevInfo->sPVRJTable.pfnPVRSRVCmdComplete((IMG_HANDLE)psBuffer->hCmdComplete, IMG_FALSE);
+#else
 		OMAPLFBQueueBufferForSwap(psSwapChain, psBuffer);
+#endif
 	}
 
 	OMAPLFBCreateSwapChainUnLock(psDevInfo);
@@ -1034,7 +1037,7 @@ static OMAPLFB_DEVINFO *OMAPLFBInitDev(unsigned uiFBDevID)
 		goto ErrorFreeDevInfo;
 	}
 
-
+#ifdef FBDEV_PRESENT
 	if(OMAPLFBInitFBDev(psDevInfo) != OMAPLFB_OK)
 	{
 
@@ -1068,8 +1071,17 @@ static OMAPLFB_DEVINFO *OMAPLFBInitDev(unsigned uiFBDevID)
 	psDevInfo->sSystemBuffer.psDevInfo = psDevInfo;
 
 	OMAPLFBInitBufferForSwap(&psDevInfo->sSystemBuffer);
+#else
+                psDevInfo->sSystemBuffer.sCPUVAddr = 0x100;
+//                psDevInfo->sSystemBuffer.ulBufferSize = 600*3200;
 
-
+                psDevInfo->sDisplayFormat.pixelformat = 20;
+                psDevInfo->sFBInfo.ulWidth      =  800;
+                psDevInfo->sFBInfo.ulHeight     =  600;
+                psDevInfo->sFBInfo.ulByteStride =  3200;
+                psDevInfo->sFBInfo.ulFBSize     =  8388608;
+                psDevInfo->sFBInfo.ulBufferSize = 600*3200;
+#endif
 
 	psDevInfo->sDCJTable.ui32TableSize = sizeof(PVRSRV_DC_SRV2DISP_KMJTABLE);
 	psDevInfo->sDCJTable.pfnOpenDCDevice = OpenDCDevice;
@@ -1206,8 +1218,9 @@ static OMAPLFB_BOOL OMAPLFBDeInitDev(OMAPLFB_DEVINFO *psDevInfo)
 			": %s: Device %u: PVR Device %u: Couldn't remove device from PVR Services\n", __FUNCTION__, psDevInfo->uiFBDevID, psDevInfo->uiPVRDevID);
 		return OMAPLFB_FALSE;
 	}
-
+#ifdef FBDEV_PRESENT
 	OMAPLFBDeInitFBDev(psDevInfo);
+#endif
 
 	OMAPLFBSetDevInfoPtr(psDevInfo->uiFBDevID, NULL);
 

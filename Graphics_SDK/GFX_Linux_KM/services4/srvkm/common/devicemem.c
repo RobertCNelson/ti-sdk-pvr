@@ -741,8 +741,25 @@ static PVRSRV_ERROR FreeMemCallBackCommon(PVRSRV_KERNEL_MEM_INFO *psMemInfo,
 #if defined (PVRSRV_FLUSH_KERNEL_OPS_LAST_ONLY)
 		if (psMemInfo->psKernelSyncInfo)
 		{
-			if (psMemInfo->psKernelSyncInfo->ui32RefCount == 1)
+			if (psMemInfo->sShareMemWorkaround.bInUse)
 			{
+
+				if (BM_XProcWorkaroundGetRefCount(psMemInfo->sShareMemWorkaround.ui32ShareIndex)
+						== 1)
+				{
+					FlushKernelOps(psMemInfo->psKernelSyncInfo->psSyncData);
+				}
+			}
+			else
+			{
+
+
+
+
+
+
+
+
 				FlushKernelOps(psMemInfo->psKernelSyncInfo->psSyncData);
 			}
 		}

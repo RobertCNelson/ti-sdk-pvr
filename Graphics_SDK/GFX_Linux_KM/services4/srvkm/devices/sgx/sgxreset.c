@@ -29,6 +29,7 @@
 #include "services_headers.h"
 #include "sgxinfokm.h"
 #include "sgxconfig.h"
+#include "sgxutils.h"
 
 #include "pdump_km.h"
 
@@ -168,7 +169,7 @@ static IMG_VOID SGXResetSleep(PVRSRV_SGXDEV_INFO	*psDevInfo,
 #endif
 
 
-	OSWaitus(100 * 1000000 / psDevInfo->ui32CoreClockSpeed);
+	SGXWaitClocks(psDevInfo, 100);
 	if (bPDump)
 	{
 		PDUMPIDLWITHFLAGS(30, ui32PDUMPFlags);
@@ -541,6 +542,7 @@ IMG_VOID SGXReset(PVRSRV_SGXDEV_INFO	*psDevInfo,
 	ui32RegVal = EUR_CR_MASTER_SOFT_RESET_BIF_RESET_MASK  |
 				 EUR_CR_MASTER_SOFT_RESET_IPF_RESET_MASK  |
 				 EUR_CR_MASTER_SOFT_RESET_DPM_RESET_MASK  |
+				 EUR_CR_MASTER_SOFT_RESET_MCI_RESET_MASK  |
 				 EUR_CR_MASTER_SOFT_RESET_VDM_RESET_MASK;
 
 #if defined(SGX_FEATURE_PTLA)
@@ -569,7 +571,7 @@ IMG_VOID SGXReset(PVRSRV_SGXDEV_INFO	*psDevInfo,
 
 #if defined(SGX_FEATURE_SYSTEM_CACHE)
 	#if defined(SGX_BYPASS_SYSTEM_CACHE)
-		#error SGX_BYPASS_SYSTEM_CACHE not supported
+		ui32RegVal = EUR_CR_MASTER_SLC_CTRL_BYPASS_ALL_MASK;
 	#else
 		ui32RegVal = EUR_CR_MASTER_SLC_CTRL_USSE_INVAL_REQ0_MASK |
 		#if defined(FIX_HW_BRN_30954)
@@ -594,10 +596,10 @@ IMG_VOID SGXReset(PVRSRV_SGXDEV_INFO	*psDevInfo,
 				EUR_CR_MASTER_SLC_CTRL_BYPASS_REQ_USE3_MASK |
 				EUR_CR_MASTER_SLC_CTRL_BYPASS_REQ_TA_MASK;
 	#endif
+	#endif
 		OSWriteHWReg(psDevInfo->pvRegsBaseKM, EUR_CR_MASTER_SLC_CTRL_BYPASS, ui32RegVal);
 		PDUMPCOMMENTWITHFLAGS(ui32PDUMPFlags, "Initialise the hydra SLC bypass control\r\n");
 		PDUMPREG(SGX_PDUMPREG_NAME, EUR_CR_MASTER_SLC_CTRL_BYPASS, ui32RegVal);
-	#endif
 #endif
 
 	SGXResetSleep(psDevInfo, ui32PDUMPFlags, IMG_TRUE);

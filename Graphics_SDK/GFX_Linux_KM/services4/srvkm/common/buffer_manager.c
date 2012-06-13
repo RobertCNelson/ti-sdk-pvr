@@ -1812,6 +1812,11 @@ PVRSRV_ERROR BM_XProcWorkaroundFindNewBufferAndSetShareIndex(IMG_UINT32 *pui32In
 	return PVRSRV_ERROR_OUT_OF_MEMORY;
 }
 
+IMG_UINT32 BM_XProcWorkaroundGetRefCount(IMG_UINT32 ui32Index)
+{
+	return gXProcWorkaroundShareData[ui32Index].ui32RefCount;
+}
+
 static PVRSRV_ERROR
 XProcWorkaroundAllocShareable(RA_ARENA *psArena,
                               IMG_UINT32 ui32AllocFlags,

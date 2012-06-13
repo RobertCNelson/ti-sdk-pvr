@@ -1,6 +1,6 @@
 /**********************************************************************
  *
- * Copyright(c) 2008 Imagination Technologies Ltd. All rights reserved.
+ * Copyright (C) Imagination Technologies Ltd. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -249,7 +249,10 @@ int FillBuffer(unsigned int uiBufferIndex)
 		case PVRSRV_PIXEL_FORMAT_RGB565:
 		default:
 		{
-			FillRGB565Image(psBuffer->sCPUVAddr, BC_EXAMPLE_WIDTH, BC_EXAMPLE_HEIGHT, BC_EXAMPLE_STRIDE);
+			FillRGB565Image(psBuffer->sCPUVAddr,
+							psBufferInfo->ui32Width,
+							psBufferInfo->ui32Height,
+							psBufferInfo->ui32ByteStride);
 			break;
 		}
 		case PVRSRV_PIXEL_FORMAT_FOURCC_ORG_VYUY:
@@ -257,17 +260,27 @@ int FillBuffer(unsigned int uiBufferIndex)
 		case PVRSRV_PIXEL_FORMAT_FOURCC_ORG_YUYV:
 		case PVRSRV_PIXEL_FORMAT_FOURCC_ORG_YVYU:
 		{
-			FillYUV422Image(psBuffer->sCPUVAddr, BC_EXAMPLE_WIDTH, BC_EXAMPLE_HEIGHT, BC_EXAMPLE_STRIDE, psBufferInfo->pixelformat);
+			FillYUV422Image(psBuffer->sCPUVAddr,
+							psBufferInfo->ui32Width,
+							psBufferInfo->ui32Height,
+							psBufferInfo->ui32ByteStride,
+							psBufferInfo->pixelformat);
 			break;
 		}
 		case PVRSRV_PIXEL_FORMAT_NV12:
 		{
-			FillNV12Image(psBuffer->sCPUVAddr, BC_EXAMPLE_WIDTH, BC_EXAMPLE_HEIGHT, BC_EXAMPLE_STRIDE);
+			FillNV12Image(psBuffer->sCPUVAddr,
+							psBufferInfo->ui32Width,
+							psBufferInfo->ui32Height,
+							psBufferInfo->ui32ByteStride);
 			break;
 		}
 		case PVRSRV_PIXEL_FORMAT_I420:
 		{
-			FillI420Image(psBuffer->sCPUVAddr, BC_EXAMPLE_WIDTH, BC_EXAMPLE_HEIGHT, BC_EXAMPLE_STRIDE);
+			FillI420Image(psBuffer->sCPUVAddr,
+							psBufferInfo->ui32Width,
+							psBufferInfo->ui32Height,
+							psBufferInfo->ui32ByteStride);
 			break;
 		}
 	}
@@ -300,5 +313,37 @@ int GetBufferCount(unsigned int *puiBufferCount)
 
 	*puiBufferCount = (unsigned int)psDevInfo->sBufferInfo.ui32BufferCount;
 
+	return 0;
+}
+
+
+
+int ReconfigureBuffer(unsigned int *uiSucceed)
+{
+	BCE_ERROR eError;
+
+
+	eError = BC_Example_Buffers_Destroy();
+
+	if (eError != BCE_OK)
+	{
+	    *uiSucceed = 0;
+		return -1;
+	}
+
+
+
+
+
+	eError = BC_Example_Buffers_Create();
+
+	if (eError != BCE_OK)
+	{
+	    *uiSucceed = 0;
+		return -1;
+	}
+
+
+	*uiSucceed = 1;
 	return 0;
 }

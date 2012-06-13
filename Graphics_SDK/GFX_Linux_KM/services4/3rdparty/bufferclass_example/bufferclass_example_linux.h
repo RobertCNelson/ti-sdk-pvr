@@ -1,6 +1,6 @@
 /**********************************************************************
  *
- * Copyright(c) 2008 Imagination Technologies Ltd. All rights reserved.
+ * Copyright (C) Imagination Technologies Ltd. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -42,5 +42,6 @@ typedef struct BC_Example_ioctl_package_TAG
 
 #define BC_Example_ioctl_fill_buffer		BC_EXAMPLE_IOWR(0)
 #define BC_Example_ioctl_get_buffer_count	BC_EXAMPLE_IOWR(1)
+#define BC_Example_ioctl_reconfigure_buffer BC_EXAMPLE_IOWR(2)
 
 #endif

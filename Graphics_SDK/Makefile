@@ -21,7 +21,7 @@ help:
 	@echo "      816x(389x)/814x(387x)(SGX core 1.2.5)      6.x   "
 	@echo "      335x(SGX core 1.2.5 )                      8.x   "
 	@echo "--> Specifying OMAPES is mandatory. BUILD=release and FBDEV=yes SUPPORT_XORG=0(not enabled) by default"
-	@echo "Usage (for install): make BUILD=(debug | release} OMAPES={3.x | 5.x | 6.x | 8.x} install"
+	@echo "Usage (for install): make BUILD=(debug | release} OMAPES={3.x | 5.x | 6.x | 8.x} EGLIMAGE={1 | 0} install"
 	@echo "--> See online Graphics Getting Started Guide for further details."
 	@echo ""
 

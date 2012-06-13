@@ -1,6 +1,6 @@
 /**********************************************************************
  *
- * Copyright(c) 2008 Imagination Technologies Ltd. All rights reserved.
+ * Copyright (C) Imagination Technologies Ltd. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -38,6 +38,14 @@
 #include <linux/dma-mapping.h>
 #endif
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,36))
+#include <linux/mutex.h>
+#endif
+
+#if defined(BC_DISCONTIG_BUFFERS)
+#include <linux/vmalloc.h>
+#endif
+
 #include "bufferclass_example.h"
 #include "bufferclass_example_linux.h"
 #include "bufferclass_example_private.h"
@@ -58,7 +66,15 @@
 
 MODULE_SUPPORTED_DEVICE(DEVNAME);
 
-int BC_Example_Bridge(struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg);
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,36))
+static long BC_Example_Bridge_Unlocked(struct file *file, unsigned int cmd, unsigned long arg);
+#else
+static int BC_Example_Bridge(struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg);
+#endif
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,36))
+static DEFINE_MUTEX(sBCExampleBridgeMutex);
+#endif
 
 #if defined(LDM_PLATFORM) || defined(LDM_PCI)
 static struct class *psPvrClass;
@@ -67,7 +83,11 @@ static struct class *psPvrClass;
 static int AssignedMajorNumber;
 
 static struct file_operations bufferclass_example_fops = {
-	ioctl:BC_Example_Bridge,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,36))
+	.unlocked_ioctl = BC_Example_Bridge_Unlocked
+#else
+	.ioctl = BC_Example_Bridge
+#endif
 };
 
 
@@ -408,11 +428,13 @@ BCE_ERROR BCGetLibFuncAddr (BCE_HANDLE unref__ hExtDrv, char *szFunctionName, PF
 }
 
 
-int BC_Example_Bridge(struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg)
+static int BC_Example_Bridge(struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg)
 {
 	int err = -EFAULT;
 	int command = _IOC_NR(cmd);
 	BC_Example_ioctl_package sBridge;
+
+	PVR_UNREFERENCED_PARAMETER(inode);
 
 	if (copy_from_user(&sBridge, (void *)arg, sizeof(sBridge)) != 0)
 	{
@@ -437,6 +459,14 @@ int BC_Example_Bridge(struct inode *inode, struct file *file, unsigned int cmd, 
 			}
 			break;
 		}
+	    case _IOC_NR(BC_Example_ioctl_reconfigure_buffer):
+		{
+			if(ReconfigureBuffer(&sBridge.outputparam) == -1)
+			{
+				return err;
+			}
+			break;
+		}
 		default:
 			return err;
 	}
@@ -449,6 +479,18 @@ int BC_Example_Bridge(struct inode *inode, struct file *file, unsigned int cmd, 
 	return 0;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,36))
+static long BC_Example_Bridge_Unlocked(struct file *file, unsigned int cmd, unsigned long arg)
+{
+	int res;
+
+	mutex_lock(&sBCExampleBridgeMutex);
+	res = BC_Example_Bridge(NULL, file, cmd, arg);
+	mutex_unlock(&sBCExampleBridgeMutex);
+
+	return res;
+}
+#endif
 
 module_init(BC_Example_ModInit);
 module_exit(BC_Example_ModCleanup);

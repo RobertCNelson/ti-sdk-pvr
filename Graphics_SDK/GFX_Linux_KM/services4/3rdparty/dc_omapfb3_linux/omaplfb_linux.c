@@ -1,6 +1,6 @@
 /**********************************************************************
  *
- * Copyright(c) 2008 Imagination Technologies Ltd. All rights reserved.
+ * Copyright(c) Imagination Technologies Ltd. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -51,7 +51,7 @@
 #include <linux/omapfb.h>
 #include <linux/mutex.h>
 
-# include <plat/vrfb.h>
+//# include <plat/vrfb.h>
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,34))
 #define PVR_OMAPFB3_NEEDS_PLAT_VRFB_H
 #endif
@@ -283,12 +283,14 @@ void OMAPLFBFlip(OMAPLFB_DEVINFO *psDevInfo, OMAPLFB_BUFFER *psBuffer)
 
 OMAPLFB_UPDATE_MODE OMAPLFBGetUpdateMode(OMAPLFB_DEVINFO *psDevInfo)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,1,0)
 	struct omap_dss_device *psDSSDev = fb2display(psDevInfo->psLINFBInfo);
 	enum omap_dss_update_mode eMode;
 	OMAP_DSS_DRIVER(psDSSDrv, psDSSDev);
         if (psDSSDrv == NULL || psDSSDev == NULL)
         {
 		DEBUG_PRINTK((KERN_INFO DRIVER_PREFIX ": %s: Device %u: No DSS device\n", __FUNCTION__, psDevInfo->uiFBDevID));
+		return OMAPLFB_UPDATE_MODE_UNDEFINED;
         }
 
 	if (psDSSDrv->get_update_mode == NULL)
@@ -313,11 +315,14 @@ OMAPLFB_UPDATE_MODE OMAPLFBGetUpdateMode(OMAPLFB_DEVINFO *psDevInfo)
 	}
 
 	return OMAPLFB_UPDATE_MODE_UNDEFINED;
-//return OMAPLFB_UPDATE_MODE_AUTO;
+#else
+return OMAPLFB_UPDATE_MODE_AUTO;
+#endif
 }
 
 OMAPLFB_BOOL OMAPLFBSetUpdateMode(OMAPLFB_DEVINFO *psDevInfo, OMAPLFB_UPDATE_MODE eMode)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,1,0)
 	struct omap_dss_device *psDSSDev = fb2display(psDevInfo->psLINFBInfo);
 	OMAP_DSS_DRIVER(psDSSDrv, psDSSDev);
 	enum omap_dss_update_mode eDSSMode;
@@ -352,11 +357,14 @@ OMAPLFB_BOOL OMAPLFBSetUpdateMode(OMAPLFB_DEVINFO *psDevInfo, OMAPLFB_UPDATE_MOD
 	}
 
 	return (res == 0);
-//return 1;
+#else
+return 1;
+#endif
 }
 
 OMAPLFB_BOOL OMAPLFBWaitForVSync(OMAPLFB_DEVINFO *psDevInfo)
 {
+#ifdef FBDEV_PRESENT
 	struct omap_dss_device *psDSSDev = fb2display(psDevInfo->psLINFBInfo);
 	OMAP_DSS_MANAGER(psDSSMan, psDSSDev);
 
@@ -369,7 +377,7 @@ OMAPLFB_BOOL OMAPLFBWaitForVSync(OMAPLFB_DEVINFO *psDevInfo)
 			return OMAPLFB_FALSE;
 		}
 	}
-
+#endif
 	return OMAPLFB_TRUE;
 }
 
@@ -453,6 +461,7 @@ static int OMAPLFBFrameBufferEvents(struct notifier_block *psNotif,
 
 OMAPLFB_ERROR OMAPLFBUnblankDisplay(OMAPLFB_DEVINFO *psDevInfo)
 {
+#ifdef FBDEV_PRESENT
 	int res;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,38)
         console_lock();
@@ -471,7 +480,7 @@ OMAPLFB_ERROR OMAPLFBUnblankDisplay(OMAPLFB_DEVINFO *psDevInfo)
 			": %s: Device %u: fb_blank failed (%d)\n", __FUNCTION__, psDevInfo->uiFBDevID, res);
 		return (OMAPLFB_ERROR_GENERIC);
 	}
-
+#endif
 	return (OMAPLFB_OK);
 }
 

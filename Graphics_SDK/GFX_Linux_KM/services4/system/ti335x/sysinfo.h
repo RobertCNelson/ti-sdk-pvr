@@ -1,6 +1,6 @@
 /**********************************************************************
  *
- * Copyright(c) 2008 Imagination Technologies Ltd. All rights reserved.
+ * Copyright (C) Imagination Technologies Ltd. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -29,12 +29,13 @@
 
 #if defined(PVR_LINUX_USING_WORKQUEUES)
 #define MAX_HW_TIME_US				(1000000)
+#define WAIT_TRY_COUNT				(20000)
 #else
 #define MAX_HW_TIME_US				(500000)
+#define WAIT_TRY_COUNT				(10000)
 #endif
 
-#define WAIT_TRY_COUNT				(10000)
 
-#define SYS_DEVICE_COUNT 3
+#define SYS_DEVICE_COUNT 15
 
 #endif

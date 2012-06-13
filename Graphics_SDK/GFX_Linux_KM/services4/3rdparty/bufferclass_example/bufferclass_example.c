@@ -1,6 +1,6 @@
 /**********************************************************************
  *
- * Copyright(c) 2008 Imagination Technologies Ltd. All rights reserved.
+ * Copyright (C) Imagination Technologies Ltd. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -70,7 +70,6 @@ static PVRSRV_ERROR OpenBCDevice(IMG_UINT32 ui32DeviceID, IMG_HANDLE *phDevice)
 
 static PVRSRV_ERROR CloseBCDevice(IMG_UINT32 ui32DeviceID, IMG_HANDLE hDevice)
 {
-	UNREFERENCED_PARAMETER(ui32DeviceID);
 	UNREFERENCED_PARAMETER(hDevice);
 
 	return (PVRSRV_OK);
@@ -306,10 +305,16 @@ BCE_ERROR BC_Example_Unregister(void)
 BCE_ERROR BC_Example_Buffers_Create(void)
 {
 	BC_EXAMPLE_DEVINFO  *psDevInfo;
-	unsigned long       i;
+	unsigned long        i;
 #if !defined(BC_DISCONTIG_BUFFERS)
-	IMG_CPU_PHYADDR     sSystemBufferCPUPAddr;
+	IMG_CPU_PHYADDR      sSystemBufferCPUPAddr;
 #endif
+	PVRSRV_PIXEL_FORMAT  pixelformat    = BC_EXAMPLE_PIXELFORMAT;
+	static IMG_UINT32    ui32Width      = BC_EXAMPLE_WIDTH;
+	static IMG_UINT32    ui32Height     = BC_EXAMPLE_HEIGHT;
+	static IMG_UINT32    ui32ByteStride = BC_EXAMPLE_STRIDE;
+
+	IMG_UINT32 ui32MaxWidth = 320 * 4;
 
 
 
@@ -327,35 +332,35 @@ BCE_ERROR BC_Example_Buffers_Create(void)
 
 
 	psDevInfo->sBufferInfo.pixelformat        = BC_EXAMPLE_PIXELFORMAT;
-	psDevInfo->sBufferInfo.ui32Width          = BC_EXAMPLE_WIDTH;
-	psDevInfo->sBufferInfo.ui32Height         = BC_EXAMPLE_HEIGHT;
-	psDevInfo->sBufferInfo.ui32ByteStride     = BC_EXAMPLE_STRIDE;
+	psDevInfo->sBufferInfo.ui32Width          = ui32Width;
+	psDevInfo->sBufferInfo.ui32Height         = ui32Height;
+	psDevInfo->sBufferInfo.ui32ByteStride     = ui32ByteStride;
 	psDevInfo->sBufferInfo.ui32BufferDeviceID = BC_EXAMPLE_DEVICEID;
 	psDevInfo->sBufferInfo.ui32Flags          = PVRSRV_BC_FLAGS_YUVCSC_FULL_RANGE | PVRSRV_BC_FLAGS_YUVCSC_BT601;
 
 	for(i=psDevInfo->ulNumBuffers; i < BC_EXAMPLE_NUM_BUFFERS; i++)
 	{
-		unsigned long ulSize = BC_EXAMPLE_HEIGHT * BC_EXAMPLE_STRIDE;
+		unsigned long ulSize = (unsigned long)(ui32Height * ui32ByteStride);
 
 		if(psDevInfo->sBufferInfo.pixelformat == PVRSRV_PIXEL_FORMAT_NV12)
 		{
 
-			ulSize += ((BC_EXAMPLE_STRIDE >> 1) * (BC_EXAMPLE_HEIGHT >> 1) << 1);
+			ulSize += ((ui32ByteStride >> 1) * (ui32Height >> 1) << 1);
 		}
 		else if(psDevInfo->sBufferInfo.pixelformat == PVRSRV_PIXEL_FORMAT_I420)
 		{
 
-			ulSize += (BC_EXAMPLE_STRIDE >> 1) * (BC_EXAMPLE_HEIGHT >> 1);
+			ulSize += (ui32ByteStride >> 1) * (ui32Height >> 1);
 
 
-			ulSize += (BC_EXAMPLE_STRIDE >> 1) * (BC_EXAMPLE_HEIGHT >> 1);
+			ulSize += (ui32ByteStride >> 1) * (ui32Height >> 1);
 		}
 
 #if defined(BC_DISCONTIG_BUFFERS)
 		if (BCAllocDiscontigMemory(ulSize,
-									&psDevInfo->psSystemBuffer[i].hMemHandle,
-									&psDevInfo->psSystemBuffer[i].sCPUVAddr,
-									&psDevInfo->psSystemBuffer[i].psSysAddr) != BCE_OK)
+								   &psDevInfo->psSystemBuffer[i].hMemHandle,
+								   &psDevInfo->psSystemBuffer[i].sCPUVAddr,
+								   &psDevInfo->psSystemBuffer[i].psSysAddr) != BCE_OK)
 		{
 			break;
 		}
@@ -390,8 +395,54 @@ BCE_ERROR BC_Example_Buffers_Create(void)
 	psDevInfo->sBCJTable.pfnGetBufferAddr = GetBCBufferAddr;
 
 
+
+
+	if (ui32Width < ui32MaxWidth)
+	{
+		switch(pixelformat)
+		{
+		    case PVRSRV_PIXEL_FORMAT_NV12:
+		    case PVRSRV_PIXEL_FORMAT_I420:
+			{
+			    ui32Width += 320;
+				ui32Height += 160;
+				ui32ByteStride = ui32Width;
+				break;
+			}
+		    case PVRSRV_PIXEL_FORMAT_FOURCC_ORG_VYUY:
+		    case PVRSRV_PIXEL_FORMAT_FOURCC_ORG_UYVY:
+		    case PVRSRV_PIXEL_FORMAT_FOURCC_ORG_YUYV:
+		    case PVRSRV_PIXEL_FORMAT_FOURCC_ORG_YVYU:
+			{
+			    ui32Width += 320;
+				ui32Height += 160;
+				ui32ByteStride = ui32Width*2;
+				break;
+			}
+		    case PVRSRV_PIXEL_FORMAT_RGB565:
+			{
+			    ui32Width += 320;
+				ui32Height += 160;
+				ui32ByteStride = ui32Width*2;
+				break;
+			}
+		    default:
+			{
+				return (BCE_ERROR_INVALID_PARAMS);
+			}
+		}
+	}
+	else
+	{
+		ui32Width      = BC_EXAMPLE_WIDTH;
+		ui32Height     = BC_EXAMPLE_HEIGHT;
+		ui32ByteStride = BC_EXAMPLE_STRIDE;
+	}
+
+
 	return (BCE_OK);
 }
+
 
 BCE_ERROR BC_Example_Buffers_Destroy(void)
 {

@@ -46,16 +46,16 @@
 
 #define PVRVERSION_FAMILY           "sgxddk"
 #define PVRVERSION_BRANCHNAME       "1.7"
-#define PVRVERSION_BUILD             783851
+#define PVRVERSION_BUILD             867897
 #define PVRVERSION_BSCONTROL        "CustomerTI_OMAP4430_Linux_GPL"
 
-#define PVRVERSION_STRING           "sgxddk 17 1.7@" PVR_STR2(PVRVERSION_BUILD)
+#define PVRVERSION_STRING           "CustomerTI_OMAP4430_Linux_GPL sgxddk 17 1.7@" PVR_STR2(PVRVERSION_BUILD)
 #define PVRVERSION_STRING_SHORT     "1.7@" PVR_STR2(PVRVERSION_BUILD)
 
 #define COPYRIGHT_TXT               "Copyright (c) Imagination Technologies Ltd. All Rights Reserved."
 
-#define PVRVERSION_BUILD_HI          78
-#define PVRVERSION_BUILD_LO          3851
+#define PVRVERSION_BUILD_HI          86
+#define PVRVERSION_BUILD_LO          7897
 #define PVRVERSION_STRING_NUMERIC    PVR_STR2(PVRVERSION_MAJ) "." PVR_STR2(PVRVERSION_MIN) "." PVR_STR2(PVRVERSION_BUILD_HI) "." PVR_STR2(PVRVERSION_BUILD_LO)
 
 #endif

@@ -127,7 +127,7 @@ static PVRSRV_ERROR SysLocateDevices(SYS_DATA *psSysData)
 #if defined(NO_HARDWARE)
 
 
-	gsSGXDeviceMap.ui32RegsSize = SYS_TI335x_SGX_REGS_SIZE;
+	gsSGXDeviceMap.ui32RegsSize = SYS_OMAP4430_SGX_REGS_SIZE;
 
 	eError = OSBaseAllocContigMemory(gsSGXDeviceMap.ui32RegsSize,
 									 &gsSGXRegsCPUVAddr,
@@ -181,11 +181,11 @@ static PVRSRV_ERROR SysLocateDevices(SYS_DATA *psSysData)
 	gsSGXDeviceMap.ui32IRQ = dev_irq;
 	PVR_TRACE(("SGX IRQ: %d", gsSGXDeviceMap.ui32IRQ));
 #else
-	gsSGXDeviceMap.sRegsSysPBase.uiAddr = SYS_TI335x_SGX_REGS_SYS_PHYS_BASE;
+	gsSGXDeviceMap.sRegsSysPBase.uiAddr = SYS_OMAP4430_SGX_REGS_SYS_PHYS_BASE;
 	gsSGXDeviceMap.sRegsCpuPBase = SysSysPAddrToCpuPAddr(gsSGXDeviceMap.sRegsSysPBase);
-	gsSGXDeviceMap.ui32RegsSize = SYS_TI335x_SGX_REGS_SIZE;
+	gsSGXDeviceMap.ui32RegsSize = SYS_OMAP4430_SGX_REGS_SIZE;
 
-	gsSGXDeviceMap.ui32IRQ = SYS_TI335x_SGX_IRQ;
+	gsSGXDeviceMap.ui32IRQ = SYS_OMAP4430_SGX_IRQ;
 
 #endif
 #if defined(SGX_OCP_REGS_ENABLED)
@@ -231,7 +231,7 @@ static IMG_CHAR *SysCreateVersionString(void)
 	IMG_VOID	*pvRegsLinAddr;
 
 	pvRegsLinAddr = OSMapPhysToLin(gsSGXDeviceMap.sRegsCpuPBase,
-								   SYS_TI335x_SGX_REGS_SIZE,
+								   gsSGXDeviceMap.ui32RegsSize,
 								   PVRSRV_HAP_UNCACHED|PVRSRV_HAP_KERNEL_ONLY,
 								   IMG_NULL);
 	if(!pvRegsLinAddr)
@@ -259,7 +259,7 @@ static IMG_CHAR *SysCreateVersionString(void)
 
 #if !defined(NO_HARDWARE)
 	OSUnMapPhysToLin(pvRegsLinAddr,
-					 SYS_TI335x_SGX_REGS_SIZE,
+					 SYS_OMAP4430_SGX_REGS_SIZE,
 					 PVRSRV_HAP_UNCACHED|PVRSRV_HAP_KERNEL_ONLY,
 					 IMG_NULL);
 #endif
@@ -354,7 +354,7 @@ PVRSRV_ERROR SysInitialise(IMG_VOID)
 		return eError;
 	}
 	SYS_SPECIFIC_DATA_SET(&gsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_LOCATEDEV);
-#if 0
+
 	eError = SysPMRuntimeRegister();
 	if (eError != PVRSRV_OK)
 	{
@@ -364,7 +364,7 @@ PVRSRV_ERROR SysInitialise(IMG_VOID)
 		return eError;
 	}
 	SYS_SPECIFIC_DATA_SET(&gsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_PM_RUNTIME);
-#endif
+
 
 
 
@@ -462,7 +462,7 @@ PVRSRV_ERROR SysInitialise(IMG_VOID)
 #if defined(PVR_OMAP_TIMER_BASE_IN_SYS_SPEC_DATA)
 	TimerRegPhysBase = gsSysSpecificData.sTimerRegPhysBase;
 #else
-	TimerRegPhysBase.uiAddr = SYS_TI335x_GP7TIMER_REGS_SYS_PHYS_BASE;
+	TimerRegPhysBase.uiAddr = SYS_OMAP4430_GP11TIMER_REGS_SYS_PHYS_BASE;
 #endif
 	gpsSysData->pvSOCTimerRegisterKM = IMG_NULL;
 	gpsSysData->hSOCTimerRegisterOSMemHandle = 0;
@@ -591,7 +591,7 @@ PVRSRV_ERROR SysDeinitialise (SYS_DATA *psSysData)
 			return eError;
 		}
 	}
-#if 0
+
 	if (SYS_SPECIFIC_DATA_TEST(gpsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_PM_RUNTIME))
 	{
 		eError = SysPMRuntimeUnregister();
@@ -602,7 +602,7 @@ PVRSRV_ERROR SysDeinitialise (SYS_DATA *psSysData)
 			return eError;
 		}
 	}
-#endif
+
 
 
 	if (SYS_SPECIFIC_DATA_TEST(gpsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_SYSCLOCKS))
@@ -627,7 +627,7 @@ PVRSRV_ERROR SysDeinitialise (SYS_DATA *psSysData)
 	{
 #if defined(NO_HARDWARE)
 
-		OSBaseFreeContigMemory(SYS_TI335x_SGX_REGS_SIZE, gsSGXRegsCPUVAddr, gsSGXDeviceMap.sRegsCpuPBase);
+		OSBaseFreeContigMemory(SYS_OMAP4430_SGX_REGS_SIZE, gsSGXRegsCPUVAddr, gsSGXDeviceMap.sRegsCpuPBase);
 #else
 #if defined(SGX_OCP_REGS_ENABLED)
 		OSUnMapPhysToLin(gsSGXRegsCPUVAddr,

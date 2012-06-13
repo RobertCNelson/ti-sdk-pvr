@@ -1731,7 +1731,7 @@ static PVRSRV_ERROR CloseBCDeviceCallBack(IMG_PVOID  pvParam,
 	psBCPerContextInfo = (PVRSRV_BUFFERCLASS_PERCONTEXT_INFO *)pvParam;
 
 	psBCInfo = psBCPerContextInfo->psBCInfo;
-
+#if 0
 	for (i = 0; i < psBCInfo->ui32BufferCount; i++)
 	{
 		if (psBCInfo->psBuffer[i].sDeviceClassBuffer.ui32MemMapRefCount != 0)
@@ -1743,10 +1743,21 @@ static PVRSRV_ERROR CloseBCDeviceCallBack(IMG_PVOID  pvParam,
 			return PVRSRV_ERROR_STILL_MAPPED;
 		}
 	}
-
+#endif
 	psBCInfo->ui32RefCount--;
 	if(psBCInfo->ui32RefCount == 0)
 	{
+		for (i = 0; i < psBCInfo->ui32BufferCount; i++)
+		{
+			if (psBCInfo->psBuffer[i].sDeviceClassBuffer.ui32MemMapRefCount != 0)
+			{
+			PVR_DPF((PVR_DBG_ERROR, "CloseBCDeviceCallBack: buffer %d (0x%p) still mapped (ui32MemMapRefCount = %d)",
+					i,
+					&psBCInfo->psBuffer[i].sDeviceClassBuffer,
+					psBCInfo->psBuffer[i].sDeviceClassBuffer.ui32MemMapRefCount));
+			return PVRSRV_ERROR_STILL_MAPPED;
+			}
+		}
 
 		psBCInfo->psFuncTable->pfnCloseBCDevice(psBCInfo->ui32DeviceID, psBCInfo->hExtDevice);
 

@@ -1,5 +1,5 @@
 #
-# Copyright(c) 2008 Imagination Technologies Ltd. All rights reserved.
+# Copyright (C) Imagination Technologies Ltd. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms and conditions of the GNU General Public License,
@@ -22,19 +22,9 @@
 # Home Park Estate, Kings Langley, Herts, WD4 8LZ, UK
 #
 #
-#
 
-MODULE		= bc_example
+modules := bufferclass_example
 
-INCLUDES = 	-I$(EURASIAROOT)/include4 \
-		-I$(EURASIAROOT)/services4/include \
-		-I$(EURASIAROOT)/services4/system/$(PVR_SYSTEM) \
-		-I$(EURASIAROOT)/services4/system/include \
-
-SOURCES =	../bufferclass_example.c \
-			../bufferclass_example_linux.c \
-			../bufferclass_example_private.c
-
-SYM_VERS_DEPS = $(EURASIAROOT)/services4/srvkm/env/linux
-
-include $(EURASIAROOT)/eurasiacon/build/linux/kbuild/Makefile.kbuild_subdir_common
+bufferclass_example_type := kernel_module
+bufferclass_example_target := bc_example.ko
+bufferclass_example_makefile := $(THIS_DIR)/Kbuild.mk

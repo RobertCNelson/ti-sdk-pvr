@@ -795,7 +795,7 @@ PVRSRV_ERROR PVRSRVProcessQueues(IMG_BOOL	bFlush)
 
 	while (OSLockResource(&psSysData->sQProcessResource, ISR_ID) != PVRSRV_OK)
 	{
-		OSWaitus(1);
+		OSSleepms(1);
 	};
 
 	psQueue = psSysData->psQueueList;

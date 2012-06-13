@@ -69,6 +69,7 @@ typedef struct bc_buf_ptr {
     int size;
     unsigned long pa;
 } bc_buf_ptr_t;
+int ReconfigureBuffer(int id, bc_buf_params_t *p,unsigned int *uiSucceed);
 
 #define BCIO_GID                    'g'
 #define BC_IOWR(INDEX)            _IOWR(BCIO_GID, INDEX, BCIO_package)
@@ -80,5 +81,6 @@ typedef struct bc_buf_ptr {
 
 #define BCIOREQ_BUFFERS           BC_IOWR(3)
 #define BCIOSET_BUFFERPHYADDR     BC_IOWR(4)
+#define BCIORECONFIGURE_BUFFERS     BC_IOWR(5)
 
 #endif

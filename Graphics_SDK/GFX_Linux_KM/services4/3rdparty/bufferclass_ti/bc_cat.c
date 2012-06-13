@@ -37,6 +37,13 @@
 #include "bc_cat.h"
 #include <linux/slab.h>
 #include <linux/dma-mapping.h>
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,36))
+#include <linux/mutex.h>
+#endif
+
+#if defined(BC_DISCONTIG_BUFFERS)
+#include <linux/vmalloc.h>
+#endif
 
 #define DEVNAME             "bccat"
 #define DRVNAME             DEVNAME
@@ -112,6 +119,11 @@ static int bc_ioctl(struct inode *inode, struct file *file,
 #else
 static long bc_ioctl(struct file *file,
                     unsigned int cmd, unsigned long arg);
+static long bc_ioctl_unlocked(struct file *file,
+                    unsigned int cmd, unsigned long arg);
+#endif
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,36))
+static DEFINE_MUTEX(sBCExampleBridgeMutex);
 #endif
 static int bc_mmap(struct file *filp, struct vm_area_struct *vma);
 
@@ -156,7 +168,7 @@ static struct file_operations bc_cat_fops = {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,36)
 	.ioctl = bc_ioctl,
 #else
-	.unlocked_ioctl = bc_ioctl,
+	.unlocked_ioctl = bc_ioctl_unlocked,
 #ifdef CONFIG_COMPAT
        .compat_ioctl = bc_ioctl,
 #endif
@@ -304,7 +316,7 @@ static int BC_CreateBuffers(int id, bc_buf_params_t *p)
     IMG_UINT32       i, stride;
     unsigned long ulSize;
     PVRSRV_PIXEL_FORMAT pixel_fmt;
-
+//IMG_UINT32 ui32MaxWidth = 320 * 4;
     if (p->count <= 0)
         return -EINVAL;
 
@@ -417,8 +429,49 @@ psDevInfo->sBCJTable.ui32TableSize    = sizeof(PVRSRV_BC_SRV2BUFFER_KMJTABLE);
         psDevInfo->sBCJTable.pfnGetBCBuffer   = GetBCBuffer;
         psDevInfo->sBCJTable.pfnGetBCInfo     = GetBCInfo;
         psDevInfo->sBCJTable.pfnGetBufferAddr = GetBCBufferAddr;
-
-
+/*
+if (psDevInfo->sBufferInfo.ui32Width < ui32MaxWidth)
+	{
+		switch(pixel_fmt)
+		{
+		    case PVRSRV_PIXEL_FORMAT_NV12:
+		    case PVRSRV_PIXEL_FORMAT_I420:
+			{
+			    psDevInfo->sBufferInfo.ui32Width += 320;
+				psDevInfo->sBufferInfo.ui32Height += 160;
+				psDevInfo->sBufferInfo.ui32ByteStride = psDevInfo->sBufferInfo.ui32Width;
+				break;
+			}
+		    case PVRSRV_PIXEL_FORMAT_FOURCC_ORG_VYUY:
+		    case PVRSRV_PIXEL_FORMAT_FOURCC_ORG_UYVY:
+		    case PVRSRV_PIXEL_FORMAT_FOURCC_ORG_YUYV:
+		    case PVRSRV_PIXEL_FORMAT_FOURCC_ORG_YVYU:
+			{
+			    psDevInfo->sBufferInfo.ui32Width += 320;
+				psDevInfo->sBufferInfo.ui32Height += 160;
+				psDevInfo->sBufferInfo.ui32ByteStride = ui32Width*2;
+				break;
+			}
+		    case PVRSRV_PIXEL_FORMAT_RGB565:
+			{
+			    psDevInfo->sBufferInfo.ui32Width += 320;
+				psDevInfo->sBufferInfo.ui32Height += 160;
+				psDevInfo->sBufferInfo.ui32ByteStride = ui32Width*2;
+				break;
+			}
+		    default:
+			{
+				return (BCE_ERROR_INVALID_PARAMS);
+			}
+		}
+	}
+	else
+	{
+		psDevInfo->sBufferInfo.ui32Width      = BC_EXAMPLE_WIDTH;
+		psDevInfo->sBufferInfo.ui32Height     = BC_EXAMPLE_HEIGHT;
+		psDevInfo->sBufferInfo.ui32ByteStride = BC_EXAMPLE_STRIDE;
+	}
+*/
         return (BCE_OK);
 
 }
@@ -924,6 +977,37 @@ static int bc_mmap(struct file *filp, struct vm_area_struct *vma)
     return 0;
 }
 
+int ReconfigureBuffer(int id, bc_buf_params_t *p, unsigned int *uiSucceed)
+{
+        BCE_ERROR eError;
+
+
+        eError = BC_DestroyBuffers(id);
+
+        if (eError != BCE_OK)
+        {
+            *uiSucceed = 0;
+                return -1;
+        }
+
+
+
+
+
+        eError = BC_CreateBuffers(id,p);
+
+        if (eError != BCE_OK)
+        {
+            *uiSucceed = 0;
+                return -1;
+        }
+
+
+        *uiSucceed = 1;
+        return 0;
+}
+
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,36)
 static int bc_ioctl(struct inode *inode, struct file *file,
                     unsigned int cmd, unsigned long arg)
@@ -933,6 +1017,7 @@ static long  bc_ioctl(struct file *file,
 #endif
 {
     BC_CAT_DEVINFO *devinfo;
+//PVR_UNREFERENCED_PARAMETER(inode);
     int id = file_to_id (file);
 
     if ((devinfo = GetAnchorPtr(id)) == IMG_NULL)
@@ -1020,11 +1105,35 @@ static long  bc_ioctl(struct file *file,
                     0xFFFFF000;
             break;
         }
+	case _IOC_NR(BCIORECONFIGURE_BUFFERS):
+	{
+		unsigned int outputparam;
+		bc_buf_params_t *p = (bc_buf_params_t *) arg;
+			if(ReconfigureBuffer(id,p,&outputparam) == -1)
+			{
+				return -EFAULT;
+			}
+			break;
+	}
         default:
             return -EFAULT;
     }
     return 0;
 }
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,36))
+static long bc_ioctl_unlocked(struct file *file, unsigned int cmd, unsigned long arg)
+{
+        int res;
+
+        mutex_lock(&sBCExampleBridgeMutex);
+        res = bc_ioctl(file, cmd, arg);
+        mutex_unlock(&sBCExampleBridgeMutex);
+
+        return res;
+}
+#endif
+
 
 module_init(bc_cat_init);
 module_exit(bc_cat_cleanup);

@@ -27,21 +27,16 @@
 #if !defined(__SOCCONFIG_H__)
 #define __SOCCONFIG_H__
 
-#include "syscommon.h"
 
-#define VS_PRODUCT_NAME	"OMAP3"
+#define VS_PRODUCT_NAME	"OMAP3630"
 
-#if defined(SGX530) && (SGX_CORE_REV == 125)
-#define SYS_SGX_CLOCK_SPEED		200000000
-#else
-#define SYS_SGX_CLOCK_SPEED		110666666
-#endif
+#define SYS_SGX_CLOCK_SPEED	 		200000000
 
 #define SYS_SGX_HWRECOVERY_TIMEOUT_FREQ		(100)
 #define SYS_SGX_PDS_TIMER_FREQ				(1000)
 
 #if !defined(SYS_SGX_ACTIVE_POWER_LATENCY_MS)
-#define SYS_SGX_ACTIVE_POWER_LATENCY_MS		(1)
+#define SYS_SGX_ACTIVE_POWER_LATENCY_MS		(2)
 #endif
 
 

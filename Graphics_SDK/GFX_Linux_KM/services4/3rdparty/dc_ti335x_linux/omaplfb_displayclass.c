@@ -817,8 +817,11 @@ static IMG_BOOL ProcessFlip(IMG_HANDLE  hCmdCookie,
 	{
 		psBuffer->hCmdComplete = (OMAPLFB_HANDLE)hCmdCookie;
 		psBuffer->ulSwapInterval = (unsigned long)psFlipCmd->ui32SwapInterval;
-
+#if defined(NO_HARDWARE)
+                psDevInfo->sPVRJTable.pfnPVRSRVCmdComplete((IMG_HANDLE)psBuffer->hCmdComplete, IMG_FALSE);
+#else
 		OMAPLFBQueueBufferForSwap(psSwapChain, psBuffer);
+#endif
 	}
 
 	OMAPLFBCreateSwapChainUnLock(psDevInfo);
