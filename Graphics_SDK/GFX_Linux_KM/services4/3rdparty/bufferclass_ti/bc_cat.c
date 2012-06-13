@@ -45,6 +45,8 @@
 #include <linux/vmalloc.h>
 #endif
 
+#include <plat/cpu.h>
+
 #define DEVNAME             "bccat"
 #define DRVNAME             DEVNAME
 #define DEVICE_COUNT        1
