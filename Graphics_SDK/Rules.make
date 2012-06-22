@@ -22,7 +22,7 @@ TARGETFS_INSTALL_DIR=
 ######################## NOT MODIFIABLE BY USER ###############################
 
 # Set installation folder
-GRAPHICS_INSTALL_DIR=$(HOME)/Graphics_SDK_4_06_00_02
+GRAPHICS_INSTALL_DIR=$(HOME)/Graphics_SDK_4_06_00_03
 
 # Location of demo executables and install information
 GFX_DEMOS_EXECPATH=$(GRAPHICS_INSTALL_DIR)/gfxsdkdemos

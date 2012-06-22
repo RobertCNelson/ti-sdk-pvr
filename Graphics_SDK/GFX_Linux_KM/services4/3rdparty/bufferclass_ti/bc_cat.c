@@ -324,6 +324,15 @@ static int BC_CreateBuffers(int id, bc_buf_params_t *p)
         return -EINVAL;
 
     switch (p->fourcc) {
+    case BC_PIX_FMT_YV12:
+        pixel_fmt = PVRSRV_PIXEL_FORMAT_YV12;
+        stride = p->width;
+        break;
+    case BC_PIX_FMT_I420:
+        pixel_fmt = PVRSRV_PIXEL_FORMAT_I420;
+        stride = p->width;
+        break;
+
     case BC_PIX_FMT_NV12:
         pixel_fmt = PVRSRV_PIXEL_FORMAT_NV12;
         stride = p->width;
@@ -380,6 +389,12 @@ static int BC_CreateBuffers(int id, bc_buf_params_t *p)
     ulSize = p->height * stride;
     if (pixel_fmt == PVRSRV_PIXEL_FORMAT_NV12)
         ulSize += (stride >> 1) * (p->height >> 1) << 1;
+
+    if ((pixel_fmt == PVRSRV_PIXEL_FORMAT_I420) || (pixel_fmt == PVRSRV_PIXEL_FORMAT_YV12) )
+    {
+        ulSize += (stride >> 1) * (p->height >> 1);
+        ulSize += (stride >> 1) * (p->height >> 1);
+    }
 
     for (i=0; i < p->count; i++) {
         if (psDevInfo->buf_type == BC_MEMORY_MMAP) {
