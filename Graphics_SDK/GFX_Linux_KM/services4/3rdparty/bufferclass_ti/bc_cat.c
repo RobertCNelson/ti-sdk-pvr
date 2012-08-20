@@ -673,14 +673,9 @@ static int __init bc_cat_init(void)
     struct device *bc_dev;
     int id;
 
-    /* texture buffer width should be multiple of 8 for OMAP3 ES3.x,
-     * or 32 for ES2.x */
+    /* ES2.x (width_align = 32) removed.*/
 
-#ifdef PLAT_TI8168
      width_align = 8;
-#else
-     width_align = cpu_is_omap3530() && ( omap_rev() < OMAP3430_REV_ES3_0 ) ? 32 : 8;
-#endif
 
     major = register_chrdev(0, DEVNAME, &bc_cat_fops);
 
