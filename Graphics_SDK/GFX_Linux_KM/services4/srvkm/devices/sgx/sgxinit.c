@@ -357,7 +357,7 @@ PVRSRV_ERROR SGXInitialise(PVRSRV_SGXDEV_INFO	*psDevInfo,
 	}
 	PDUMPCOMMENTWITHFLAGS(PDUMP_FLAGS_CONTINUOUS, "End of SGX initialisation script part 2\n");
 
-	if(!(cpu_is_omap3530() || cpu_is_omap3517()))
+	if(!(cpu_is_omap3430()))
         {
                OSWriteHWReg(psDevInfo->pvRegsBaseKM, 0xFF08, 0x80000000);//OCP Bypass mode
         }
