@@ -33,8 +33,6 @@
 #define BC_FOURCC(a,b,c,d) \
     ((unsigned long) ((a) | (b)<<8 | (c)<<16 | (d)<<24))
 
-#define BC_PIX_FMT_I420     BC_FOURCC('I', '4', '2', '0') /*YUV 4:2:0*/
-#define BC_PIX_FMT_YV12     BC_FOURCC('Y', 'V', '1', '2') /*YUV 4:2:0*/
 #define BC_PIX_FMT_NV12     BC_FOURCC('N', 'V', '1', '2') /*YUV 4:2:0*/
 #define BC_PIX_FMT_UYVY     BC_FOURCC('U', 'Y', 'V', 'Y') /*YUV 4:2:2*/
 #define BC_PIX_FMT_YUYV     BC_FOURCC('Y', 'U', 'Y', 'V') /*YUV 4:2:2*/
