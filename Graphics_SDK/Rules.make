@@ -1,28 +1,45 @@
 #Rules.make
 
 ################# FIELDS MODIFIABLE BY THE USER ###############################
-############### All the fields below are mandatory ############################
+############### All the fields below are MANDATORY ############################
 
+#By default all below variables have been initialized with equivalent AMSDK variables
+# Change them to appropriate paths as per your machine/build environment paths.
 # Set home area (ex /home/user/)
-HOME=
+HOME=$(SDK_INSTALL_DIR)/graphics
 
 # Set Toolchain path (ex /home/user/toolchain/arago-2011.09/armv7a)
-CSTOOL_DIR=
+CSTOOL_DIR=$(LINUX_DEVKIT_PATH)
 
 # Set Tool chain prefix (ex arm-arago-linux-gnueabi- )
-CSTOOL_PREFIX=
+CSTOOL_PREFIX=`basename $CROSS_COMPILE`
 
 # Set kernel installation path ( ex /home/user/linux-04.00.01.13 )
-KERNEL_INSTALL_DIR=
+KERNEL_INSTALL_DIR=$(LINUXKERNEL_INSTALL_DIR)
 
 # Set Target filesystem path ( ex /home/user/targetfs )
-TARGETFS_INSTALL_DIR=
+TARGETFS_INSTALL_DIR=$(DESTDIR)
+
+############### All the fields below are OPTIONAL ############################
+############### BEST SUGGESTED TO LEAVE THE BELOW AS IS ############################
+
+# Below is just an optional define given only to enable users who want to pass additional compiler/link flags.
+# Only update the below options if you exactly know about the additional flag to be added & also are sure that its supported with your toolchain.
+# Otherwise its best suggested to leave the below as is ie empty
+
+# Add additional Compiler flags below only if required (Please read above comments)
+EXTRA_CFLAGS?=
+# Add additional Linker flags below only if required (Please read above comments)
+EXTRA_LFLAGS?=
+
+export EXTRA_CFLAGS
+export EXTRA_LFLAGS
 
 ######################### PRE-DEFINED VARIABLES ###############################
 ######################## NOT MODIFIABLE BY USER ###############################
 
 # Set installation folder
-GRAPHICS_INSTALL_DIR=$(HOME)/Graphics_SDK_4_07_00_01
+GRAPHICS_INSTALL_DIR=$(HOME)/Graphics_SDK_4_08_00_01
 
 # Location of demo executables and install information
 GFX_DEMOS_EXECPATH=$(GRAPHICS_INSTALL_DIR)/gfxsdkdemos
@@ -56,11 +73,11 @@ GFX_REL_ES8_LIB_SRCPATH=$(GRAPHICS_INSTALL_DIR)/gfx_rel_es8.x
 
 GFX_DBG_ES8_LIB_SRCPATH=$(GRAPHICS_INSTALL_DIR)/gfx_dbg_es8.x
 
-GFX_OGLES_REL_LIB_DESTPATH=$(GFX_OGLES_SDKPATH)/Builds/OGLES/LinuxOMAP3
+GFX_OGLES_REL_LIB_DESTPATH=$(GFX_OGLES_SDKPATH)/Builds/OGLES/LinuxARMV7
 
-GFX_OGLES2_REL_LIB_DESTPATH=$(GFX_OGLES2_SDKPATH)/Builds/OGLES2/LinuxOMAP3
+GFX_OGLES2_REL_LIB_DESTPATH=$(GFX_OGLES2_SDKPATH)/Builds/OGLES2/LinuxARMV7
 
-GFX_OVG_REL_LIB_DESTPATH=$(GFX_OVG_SDKPATH)/Builds/OVG/LinuxOMAP3
+GFX_OVG_REL_LIB_DESTPATH=$(GFX_OVG_SDKPATH)/Builds/OVG/LinuxARMV7
 
 GFX_KERNMOD_SRCPATH=$(GRAPHICS_INSTALL_DIR)/GFX_Linux_KM
 

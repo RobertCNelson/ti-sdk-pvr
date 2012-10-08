@@ -1,32 +1,47 @@
-/**********************************************************************
- *
- * Copyright (C) Imagination Technologies Ltd. All rights reserved.
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms and conditions of the GNU General Public License,
- * version 2, as published by the Free Software Foundation.
- *
- * This program is distributed in the hope it will be useful but, except
- * as otherwise stated in writing, without any warranty; without even the
- * implied warranty of merchantability or fitness for a particular purpose.
- * See the GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin St - Fifth Floor, Boston, MA 02110-1301 USA.
- *
- * The full GNU General Public License is included in this distribution in
- * the file called "COPYING".
- *
- * Contact Information:
- * Imagination Technologies Ltd. <gpl-support@imgtec.com>
- * Home Park Estate, Kings Langley, Herts, WD4 8LZ, UK
- *
- ******************************************************************************/
+/*************************************************************************/ /*!
+@Title          bufferclass_example kernel driver structures and prototypes
+@Copyright      Copyright (c) Imagination Technologies Ltd. All Rights Reserved
+@License        Dual MIT/GPLv2
 
+The contents of this file are subject to the MIT license as set out below.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+Alternatively, the contents of this file may be used under the terms of
+the GNU General Public License Version 2 ("GPL") in which case the provisions
+of GPL are applicable instead of those above.
+
+If you wish to allow use of your version of this file only under the terms of
+GPL, and not to allow others to use your version of this file under the terms
+of the MIT license, indicate your decision by deleting the provisions above
+and replace them with the notice and other provisions required by GPL as set
+out in the file called "GPL-COPYING" included in this distribution. If you do
+not delete the provisions above, a recipient may use your version of this file
+under the terms of either the MIT license or GPL.
+
+This License is also included in this distribution in the file called
+"MIT-COPYING".
+
+EXCEPT AS OTHERWISE STATED IN A NEGOTIATED AGREEMENT: (A) THE SOFTWARE IS
+PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
+BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+PURPOSE AND NONINFRINGEMENT; AND (B) IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+*/ /**************************************************************************/
 #ifndef __BC_EXAMPLE_H__
 #define __BC_EXAMPLE_H__
 
+/* IMG services headers */
 #include "img_defs.h"
 #include "servicesext.h"
 #include "kernelbuffer.h"
@@ -38,6 +53,9 @@ extern "C" {
 #define BC_EXAMPLE_NUM_BUFFERS  3
 
 #define NV12 1
+//#define YV12 1
+//#define YUV422 1
+
 #ifdef NV12
 
 #define BC_EXAMPLE_WIDTH        (320)
@@ -46,12 +64,12 @@ extern "C" {
 #define BC_EXAMPLE_PIXELFORMAT	(PVRSRV_PIXEL_FORMAT_NV12)
 
 #else
-#ifdef I420
+#ifdef YV12
 
 #define BC_EXAMPLE_WIDTH        (320)
 #define BC_EXAMPLE_HEIGHT       (160)
 #define BC_EXAMPLE_STRIDE       (320)
-#define BC_EXAMPLE_PIXELFORMAT	(PVRSRV_PIXEL_FORMAT_I420)
+#define BC_EXAMPLE_PIXELFORMAT	(PVRSRV_PIXEL_FORMAT_YV12)
 
 #else
 #ifdef YUV422
@@ -82,13 +100,14 @@ typedef enum tag_bce_bool
 	BCE_TRUE  = 1,
 } BCE_BOOL, *BCE_PBOOL;
 
+/* BC_NOHW buffer structure */
 typedef struct BC_EXAMPLE_BUFFER_TAG
 {
 	unsigned long           ulSize;
 	BCE_HANDLE              hMemHandle;
 
-
-
+	/* IMG structures used, to minimise API function code */
+	/* replace with own structures where necessary */
 #if defined(BC_DISCONTIG_BUFFERS)
 	IMG_SYS_PHYADDR				*psSysAddr;
 #else
@@ -102,36 +121,42 @@ typedef struct BC_EXAMPLE_BUFFER_TAG
 } BC_EXAMPLE_BUFFER;
 
 
+/* kernel device information structure */
 typedef struct BC_EXAMPLE_DEVINFO_TAG
 {
 	unsigned long           ulDeviceID;
 
 	BC_EXAMPLE_BUFFER       *psSystemBuffer;
 
-
+	/* number of supported buffers */
 	unsigned long           ulNumBuffers;
 
-
+	/* jump table into PVR services */
 	PVRSRV_BC_BUFFER2SRV_KMJTABLE sPVRJTable;
 
-
+	/* jump table into BC */
 	PVRSRV_BC_SRV2BUFFER_KMJTABLE sBCJTable;
 
-
-
-
+	/*
+		handle for connection to kernel services
+		- OS specific - may not be required
+	*/
 	BCE_HANDLE              hPVRServices;
 
-
+	/* ref count */
 	unsigned long           ulRefCount;
 
-
-
+	/* IMG structures used, to minimise API function code */
+	/* replace with own structures where necessary */
 	BUFFER_INFO             sBufferInfo;
 
 }  BC_EXAMPLE_DEVINFO;
 
 
+/*!
+ *****************************************************************************
+ * Error values
+ *****************************************************************************/
 typedef enum _BCE_ERROR_
 {
 	BCE_OK                             =  0,
@@ -162,6 +187,7 @@ BCE_ERROR BC_Example_Buffers_Destroy(void);
 BCE_ERROR BC_Example_Init(void);
 BCE_ERROR BC_Example_Deinit(void);
 
+/* OS Specific APIs */
 BCE_ERROR BCOpenPVRServices(BCE_HANDLE *phPVRServices);
 BCE_ERROR BCClosePVRServices(BCE_HANDLE hPVRServices);
 
@@ -204,4 +230,8 @@ BC_EXAMPLE_DEVINFO * GetAnchorPtr(void);
 }
 #endif
 
-#endif
+#endif /* __BC_EXAMPLE_H__ */
+
+/******************************************************************************
+ End of file (bufferclass_example.h)
+******************************************************************************/

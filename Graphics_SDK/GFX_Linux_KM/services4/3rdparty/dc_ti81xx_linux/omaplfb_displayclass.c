@@ -1,28 +1,77 @@
-/**********************************************************************
- *
- * Copyright(c) 2008 Imagination Technologies Ltd. All rights reserved.
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms and conditions of the GNU General Public License,
- * version 2, as published by the Free Software Foundation.
- *
- * This program is distributed in the hope it will be useful but, except
- * as otherwise stated in writing, without any warranty; without even the
- * implied warranty of merchantability or fitness for a particular purpose.
- * See the GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin St - Fifth Floor, Boston, MA 02110-1301 USA.
- *
- * The full GNU General Public License is included in this distribution in
- * the file called "COPYING".
- *
- * Contact Information:
- * Imagination Technologies Ltd. <gpl-support@imgtec.com>
- * Home Park Estate, Kings Langley, Herts, WD4 8LZ, UK
- *
- ******************************************************************************/
+/*************************************************************************/ /*!
+@Title          OMAP common display driver components
+@Copyright      Copyright (c) Imagination Technologies Ltd. All Rights Reserved
+@License        Dual MIT/GPLv2
+
+The contents of this file are subject to the MIT license as set out below.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+Alternatively, the contents of this file may be used under the terms of
+the GNU General Public License Version 2 ("GPL") in which case the provisions
+of GPL are applicable instead of those above.
+
+If you wish to allow use of your version of this file only under the terms of
+GPL, and not to allow others to use your version of this file under the terms
+of the MIT license, indicate your decision by deleting the provisions above
+and replace them with the notice and other provisions required by GPL as set
+out in the file called "GPL-COPYING" included in this distribution. If you do
+not delete the provisions above, a recipient may use your version of this file
+under the terms of either the MIT license or GPL.
+
+This License is also included in this distribution in the file called
+"MIT-COPYING".
+
+EXCEPT AS OTHERWISE STATED IN A NEGOTIATED AGREEMENT: (A) THE SOFTWARE IS
+PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
+BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+PURPOSE AND NONINFRINGEMENT; AND (B) IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+*/ /**************************************************************************/
+
+/**************************************************************************
+ The 3rd party driver is a specification of an API to integrate the IMG POWERVR
+ Services driver with 3rd Party display hardware.  It is NOT a specification for
+ a display controller driver, rather a specification to extend the API for a
+ pre-existing driver for the display hardware.
+
+ The 3rd party driver interface provides IMG POWERVR client drivers (e.g. PVR2D)
+ with an API abstraction of the system's underlying display hardware, allowing
+ the client drivers to indirectly control the display hardware and access its
+ associated memory.
+
+ Functions of the API include
+ - query primary surface attributes (width, height, stride, pixel format, CPU
+     physical and virtual address)
+ - swap/flip chain creation and subsequent query of surface attributes
+ - asynchronous display surface flipping, taking account of asynchronous read
+ (flip) and write (render) operations to the display surface
+
+ Note: having queried surface attributes the client drivers are able to map the
+ display memory to any IMG POWERVR Services device by calling
+ PVRSRVMapDeviceClassMemory with the display surface handle.
+
+ This code is intended to be an example of how a pre-existing display driver may
+ be extended to support the 3rd Party Display interface to POWERVR Services
+ - IMG is not providing a display driver implementation.
+ **************************************************************************/
+
+/*
+ * OMAP Linux 3rd party display driver.
+ * This is based on the Generic PVR Linux Framebuffer 3rd party display
+ * driver, with OMAP specific extensions to support flipping.
+ */
 
 #include <linux/version.h>
 #include <linux/kernel.h>
@@ -32,24 +81,45 @@
 #include <linux/string.h>
 #include <linux/notifier.h>
 
+/* IMG services headers */
 #include "img_defs.h"
 #include "servicesext.h"
 #include "kerneldisplay.h"
 #include "omaplfb.h"
 
+#if defined(CONFIG_DSSCOMP)
+
+#if !defined(CONFIG_ION_OMAP)
+#error CONFIG_DSSCOMP support requires CONFIG_ION_OMAP
+#endif
+
+#include <linux/ion.h>
+#include <linux/omap_ion.h>
+
+extern struct ion_client *gpsIONClient;
+
+#include <mach/tiler.h>
+#include <video/dsscomp.h>
+#include <plat/dsscomp.h>
+
+#endif /* defined(CONFIG_DSSCOMP) */
+
 #define OMAPLFB_COMMAND_COUNT		1
 
 #define	OMAPLFB_VSYNC_SETTLE_COUNT	5
 
-#define	OMAPLFB_MAX_NUM_DEVICES		1 // FB_MAX
+//#define	OMAPLFB_MAX_NUM_DEVICES		FB_MAX
+#define	OMAPLFB_MAX_NUM_DEVICES		1
 #if (OMAPLFB_MAX_NUM_DEVICES > FB_MAX)
 #error "OMAPLFB_MAX_NUM_DEVICES must not be greater than FB_MAX"
 #endif
 
 static OMAPLFB_DEVINFO *gapsDevInfo[OMAPLFB_MAX_NUM_DEVICES];
 
+/* Top level 'hook ptr' */
 static PFN_DC_GET_PVRJTABLE gpfnGetPVRJTable = NULL;
 
+/* Round x up to a multiple of y */
 static inline unsigned long RoundUpToMultiple(unsigned long x, unsigned long y)
 {
 	unsigned long div = x / y;
@@ -58,6 +128,7 @@ static inline unsigned long RoundUpToMultiple(unsigned long x, unsigned long y)
 	return (div + ((rem == 0) ? 0 : 1)) * y;
 }
 
+/* Greatest common divisor of x and y */
 static unsigned long GCD(unsigned long x, unsigned long y)
 {
 	while (y != 0)
@@ -70,6 +141,7 @@ static unsigned long GCD(unsigned long x, unsigned long y)
 	return x;
 }
 
+/* Least common multiple of x and y */
 static unsigned long LCM(unsigned long x, unsigned long y)
 {
 	unsigned long gcd = GCD(x, y);
@@ -82,6 +154,7 @@ unsigned OMAPLFBMaxFBDevIDPlusOne(void)
 	return OMAPLFB_MAX_NUM_DEVICES;
 }
 
+/* Returns DevInfo pointer for a given device */
 OMAPLFB_DEVINFO *OMAPLFBGetDevInfoPtr(unsigned uiFBDevID)
 {
 	WARN_ON(uiFBDevID >= OMAPLFBMaxFBDevIDPlusOne());
@@ -94,6 +167,7 @@ OMAPLFB_DEVINFO *OMAPLFBGetDevInfoPtr(unsigned uiFBDevID)
 	return gapsDevInfo[uiFBDevID];
 }
 
+/* Sets the DevInfo pointer for a given device */
 static inline void OMAPLFBSetDevInfoPtr(unsigned uiFBDevID, OMAPLFB_DEVINFO *psDevInfo)
 {
 	WARN_ON(uiFBDevID >= OMAPLFB_MAX_NUM_DEVICES);
@@ -110,6 +184,7 @@ static inline OMAPLFB_BOOL SwapChainHasChanged(OMAPLFB_DEVINFO *psDevInfo, OMAPL
 		(psDevInfo->uiSwapChainID != psSwapChain->uiSwapChainID);
 }
 
+/* Don't wait for vertical sync */
 static inline OMAPLFB_BOOL DontWaitForVSync(OMAPLFB_DEVINFO *psDevInfo)
 {
 	OMAPLFB_BOOL bDontWait;
@@ -126,6 +201,10 @@ static inline OMAPLFB_BOOL DontWaitForVSync(OMAPLFB_DEVINFO *psDevInfo)
 	return bDontWait;
 }
 
+/*
+ * SetDCState
+ * Called from services.
+ */
 static IMG_VOID SetDCState(IMG_HANDLE hDevice, IMG_UINT32 ui32State)
 {
 	OMAPLFB_DEVINFO *psDevInfo = (OMAPLFB_DEVINFO *)hDevice;
@@ -138,11 +217,18 @@ static IMG_VOID SetDCState(IMG_HANDLE hDevice, IMG_UINT32 ui32State)
 		case DC_STATE_NO_FLUSH_COMMANDS:
 			OMAPLFBAtomicBoolSet(&psDevInfo->sFlushCommands, OMAPLFB_FALSE);
 			break;
+		case DC_STATE_FORCE_SWAP_TO_SYSTEM:
+			OMAPLFBFlip(psDevInfo, &psDevInfo->sSystemBuffer);
+			break;
 		default:
 			break;
 	}
 }
 
+/*
+ * OpenDCDevice
+ * Called from services.
+ */
 static PVRSRV_ERROR OpenDCDevice(IMG_UINT32 uiPVRDevID,
                                  IMG_HANDLE *phDevice,
                                  PVRSRV_SYNC_DATA* psSystemBufferSyncData)
@@ -167,7 +253,7 @@ static PVRSRV_ERROR OpenDCDevice(IMG_UINT32 uiPVRDevID,
 		return PVRSRV_ERROR_INVALID_DEVICE;
 	}
 
-
+	/* store the system surface sync data */
 	psDevInfo->sSystemBuffer.psSyncData = psSystemBufferSyncData;
 
 	eError = OMAPLFBUnblankDisplay(psDevInfo);
@@ -178,12 +264,16 @@ static PVRSRV_ERROR OpenDCDevice(IMG_UINT32 uiPVRDevID,
 		return PVRSRV_ERROR_UNBLANK_DISPLAY_FAILED;
 	}
 
-
+	/* return handle to the devinfo */
 	*phDevice = (IMG_HANDLE)psDevInfo;
 
 	return PVRSRV_OK;
 }
 
+/*
+ * CloseDCDevice
+ * Called from services.
+ */
 static PVRSRV_ERROR CloseDCDevice(IMG_HANDLE hDevice)
 {
 #if defined(SUPPORT_DRI_DRM)
@@ -197,6 +287,10 @@ static PVRSRV_ERROR CloseDCDevice(IMG_HANDLE hDevice)
 	return PVRSRV_OK;
 }
 
+/*
+ * EnumDCFormats
+ * Called from services.
+ */
 static PVRSRV_ERROR EnumDCFormats(IMG_HANDLE hDevice,
                                   IMG_UINT32 *pui32NumFormats,
                                   DISPLAY_FORMAT *psFormat)
@@ -220,6 +314,10 @@ static PVRSRV_ERROR EnumDCFormats(IMG_HANDLE hDevice,
 	return PVRSRV_OK;
 }
 
+/*
+ * EnumDCDims
+ * Called from services.
+ */
 static PVRSRV_ERROR EnumDCDims(IMG_HANDLE hDevice,
                                DISPLAY_FORMAT *psFormat,
                                IMG_UINT32 *pui32NumDims,
@@ -236,7 +334,7 @@ static PVRSRV_ERROR EnumDCDims(IMG_HANDLE hDevice,
 
 	*pui32NumDims = 1;
 
-
+	/* No need to look at psFormat; there is only one */
 	if(psDim)
 	{
 		psDim[0] = psDevInfo->sDisplayDim;
@@ -246,6 +344,10 @@ static PVRSRV_ERROR EnumDCDims(IMG_HANDLE hDevice,
 }
 
 
+/*
+ * GetDCSystemBuffer
+ * Called from services.
+ */
 static PVRSRV_ERROR GetDCSystemBuffer(IMG_HANDLE hDevice, IMG_HANDLE *phBuffer)
 {
 	OMAPLFB_DEVINFO	*psDevInfo;
@@ -263,6 +365,10 @@ static PVRSRV_ERROR GetDCSystemBuffer(IMG_HANDLE hDevice, IMG_HANDLE *phBuffer)
 }
 
 
+/*
+ * GetDCInfo
+ * Called from services.
+ */
 static PVRSRV_ERROR GetDCInfo(IMG_HANDLE hDevice, DISPLAY_INFO *psDCInfo)
 {
 	OMAPLFB_DEVINFO	*psDevInfo;
@@ -279,6 +385,10 @@ static PVRSRV_ERROR GetDCInfo(IMG_HANDLE hDevice, DISPLAY_INFO *psDCInfo)
 	return PVRSRV_OK;
 }
 
+/*
+ * GetDCBufferAddr
+ * Called from services.
+ */
 static PVRSRV_ERROR GetDCBufferAddr(IMG_HANDLE        hDevice,
                                     IMG_HANDLE        hBuffer,
                                     IMG_SYS_PHYADDR   **ppsSysAddr,
@@ -323,7 +433,11 @@ static PVRSRV_ERROR GetDCBufferAddr(IMG_HANDLE        hDevice,
 
 	if (ppvCpuVAddr)
 	{
+#if defined(CONFIG_DSSCOMP)
+		*ppvCpuVAddr = psDevInfo->sFBInfo.bIs2D ? NULL : psSystemBuffer->sCPUVAddr;
+#else
 		*ppvCpuVAddr = psSystemBuffer->sCPUVAddr;
+#endif
 	}
 
 	if (phOSMapInfo)
@@ -333,12 +447,28 @@ static PVRSRV_ERROR GetDCBufferAddr(IMG_HANDLE        hDevice,
 
 	if (pbIsContiguous)
 	{
+#if defined(CONFIG_DSSCOMP)
+		*pbIsContiguous = !psDevInfo->sFBInfo.bIs2D;
+#else
 		*pbIsContiguous = IMG_TRUE;
+#endif
 	}
+
+#if defined(CONFIG_DSSCOMP)
+	if (psDevInfo->sFBInfo.bIs2D)
+	{
+		int i = (psSystemBuffer->sSysAddr.uiAddr - psDevInfo->sFBInfo.psPageList->uiAddr) >> PAGE_SHIFT;
+		*ppsSysAddr = psDevInfo->sFBInfo.psPageList + psDevInfo->sFBInfo.ulHeight * i;
+	}
+#endif
 
 	return PVRSRV_OK;
 }
 
+/*
+ * CreateDCSwapChain
+ * Called from services.
+ */
 static PVRSRV_ERROR CreateDCSwapChain(IMG_HANDLE hDevice,
                                       IMG_UINT32 ui32Flags,
                                       DISPLAY_SURF_ATTRIBUTES *psDstSurfAttrib,
@@ -358,7 +488,7 @@ static PVRSRV_ERROR CreateDCSwapChain(IMG_HANDLE hDevice,
 
 	UNREFERENCED_PARAMETER(ui32OEMFlags);
 
-
+	/* Check parameters */
 	if(!hDevice
 	|| !psDstSurfAttrib
 	|| !psSrcSurfAttrib
@@ -370,7 +500,7 @@ static PVRSRV_ERROR CreateDCSwapChain(IMG_HANDLE hDevice,
 
 	psDevInfo = (OMAPLFB_DEVINFO*)hDevice;
 
-
+	/* Do we support swap chains? */
 	if (psDevInfo->sDisplayInfo.ui32MaxSwapChains == 0)
 	{
 		return PVRSRV_ERROR_NOT_SUPPORTED;
@@ -378,14 +508,14 @@ static PVRSRV_ERROR CreateDCSwapChain(IMG_HANDLE hDevice,
 
 	OMAPLFBCreateSwapChainLock(psDevInfo);
 
-
+	/* The driver only supports a single swapchain */
 	if(psDevInfo->psSwapChain != NULL)
 	{
 		eError = PVRSRV_ERROR_FLIP_CHAIN_EXISTS;
 		goto ExitUnLock;
 	}
 
-
+	/* Check the buffer count */
 	if(ui32BufferCount > psDevInfo->sDisplayInfo.ui32MaxSwapChainBuffers)
 	{
 		eError = PVRSRV_ERROR_TOOMANYBUFFERS;
@@ -398,16 +528,23 @@ static PVRSRV_ERROR CreateDCSwapChain(IMG_HANDLE hDevice,
 		goto ExitUnLock;
 	}
 
-
+	/*
+	 * We will allocate the swap chain buffers at the back of the frame
+	 * buffer area.  This preserves the front portion, which may be being
+	 * used by other Linux Framebuffer based applications.
+	 */
 	ui32BuffersToSkip = psDevInfo->sDisplayInfo.ui32MaxSwapChainBuffers - ui32BufferCount;
 
-
+	/*
+	 *	Verify the DST/SRC attributes,
+	 *	SRC/DST must match the current display mode config
+	*/
 	if(psDstSurfAttrib->pixelformat != psDevInfo->sDisplayFormat.pixelformat
 	|| psDstSurfAttrib->sDims.ui32ByteStride != psDevInfo->sDisplayDim.ui32ByteStride
 	|| psDstSurfAttrib->sDims.ui32Width != psDevInfo->sDisplayDim.ui32Width
 	|| psDstSurfAttrib->sDims.ui32Height != psDevInfo->sDisplayDim.ui32Height)
 	{
-
+		/* DST doesn't match the current mode */
 		eError = PVRSRV_ERROR_INVALID_PARAMS;
 		goto ExitUnLock;
 	}
@@ -417,12 +554,12 @@ static PVRSRV_ERROR CreateDCSwapChain(IMG_HANDLE hDevice,
 	|| psDstSurfAttrib->sDims.ui32Width != psSrcSurfAttrib->sDims.ui32Width
 	|| psDstSurfAttrib->sDims.ui32Height != psSrcSurfAttrib->sDims.ui32Height)
 	{
-
+		/* DST doesn't match the SRC */
 		eError = PVRSRV_ERROR_INVALID_PARAMS;
 		goto ExitUnLock;
 	}
 
-
+	/* check flags if implementation requires them */
 	UNREFERENCED_PARAMETER(ui32Flags);
 
 #if defined(PVR_OMAPFB3_UPDATE_MODE)
@@ -431,7 +568,7 @@ static PVRSRV_ERROR CreateDCSwapChain(IMG_HANDLE hDevice,
 		printk(KERN_WARNING DRIVER_PREFIX ": %s: Device %u: Couldn't set frame buffer update mode %d\n", __FUNCTION__, psDevInfo->uiFBDevID, PVR_OMAPFB3_UPDATE_MODE);
 	}
 #endif
-
+	/* create a swapchain structure */
 	psSwapChain = (OMAPLFB_SWAPCHAIN*)OMAPLFBAllocKernelMem(sizeof(OMAPLFB_SWAPCHAIN));
 	if(!psSwapChain)
 	{
@@ -451,19 +588,26 @@ static PVRSRV_ERROR CreateDCSwapChain(IMG_HANDLE hDevice,
 	psSwapChain->bNotVSynced = OMAPLFB_TRUE;
 	psSwapChain->uiFBDevID = psDevInfo->uiFBDevID;
 
-
+	/* Link the buffers */
 	for(i=0; i<ui32BufferCount-1; i++)
 	{
 		psBuffer[i].psNext = &psBuffer[i+1];
 	}
-
+	/* and link last to first */
 	psBuffer[i].psNext = &psBuffer[0];
 
-
+	/* Configure the swapchain buffers */
 	for(i=0; i<ui32BufferCount; i++)
 	{
 		IMG_UINT32 ui32SwapBuffer = i + ui32BuffersToSkip;
 		IMG_UINT32 ui32BufferOffset = ui32SwapBuffer * (IMG_UINT32)psDevInfo->sFBInfo.ulRoundedBufferSize;
+
+#if defined(CONFIG_DSSCOMP)
+		if (psDevInfo->sFBInfo.bIs2D)
+		{
+			ui32BufferOffset = 0;
+		}
+#endif /* defined(CONFIG_DSSCOMP) */
 
 		psBuffer[i].psSyncData = ppsSyncData[i];
 
@@ -471,6 +615,14 @@ static PVRSRV_ERROR CreateDCSwapChain(IMG_HANDLE hDevice,
 		psBuffer[i].sCPUVAddr = psDevInfo->sFBInfo.sCPUVAddr + ui32BufferOffset;
 		psBuffer[i].ulYOffset = ui32BufferOffset / psDevInfo->sFBInfo.ulByteStride;
 		psBuffer[i].psDevInfo = psDevInfo;
+
+#if defined(CONFIG_DSSCOMP)
+		if (psDevInfo->sFBInfo.bIs2D)
+		{
+			psBuffer[i].sSysAddr.uiAddr += ui32SwapBuffer *
+				ALIGN((IMG_UINT32)psDevInfo->sFBInfo.ulWidth * psDevInfo->sFBInfo.uiBytesPerPixel, PAGE_SIZE);
+		}
+#endif /* defined(CONFIG_DSSCOMP) */
 
 		OMAPLFBInitBufferForSwap(&psBuffer[i]);
 	}
@@ -517,6 +669,10 @@ ExitUnLock:
 	return eError;
 }
 
+/*
+ * DestroyDCSwapChain
+ * Called from services.
+ */
 static PVRSRV_ERROR DestroyDCSwapChain(IMG_HANDLE hDevice,
 	IMG_HANDLE hSwapChain)
 {
@@ -524,7 +680,7 @@ static PVRSRV_ERROR DestroyDCSwapChain(IMG_HANDLE hDevice,
 	OMAPLFB_SWAPCHAIN *psSwapChain;
 	OMAPLFB_ERROR eError;
 
-
+	/* Check parameters */
 	if(!hDevice || !hSwapChain)
 	{
 		return PVRSRV_ERROR_INVALID_PARAMS;
@@ -544,7 +700,7 @@ static PVRSRV_ERROR DestroyDCSwapChain(IMG_HANDLE hDevice,
 		goto ExitUnLock;
 	}
 
-
+	/* The swap queue is flushed before being destroyed */
 	OMAPLFBDestroySwapQueue(psSwapChain);
 
 	eError = OMAPLFBDisableLFBEventNotification(psDevInfo);
@@ -553,7 +709,7 @@ static PVRSRV_ERROR DestroyDCSwapChain(IMG_HANDLE hDevice,
 		printk(KERN_WARNING DRIVER_PREFIX ": %s: Device %u: Couldn't disable framebuffer event notification\n", __FUNCTION__, psDevInfo->uiFBDevID);
 	}
 
-
+	/* Free resources */
 	OMAPLFBFreeKernelMem(psSwapChain->psBuffer);
 	OMAPLFBFreeKernelMem(psSwapChain);
 
@@ -570,6 +726,10 @@ ExitUnLock:
 	return eError;
 }
 
+/*
+ * SetDCDstRect
+ * Called from services.
+ */
 static PVRSRV_ERROR SetDCDstRect(IMG_HANDLE hDevice,
 	IMG_HANDLE hSwapChain,
 	IMG_RECT *psRect)
@@ -578,11 +738,15 @@ static PVRSRV_ERROR SetDCDstRect(IMG_HANDLE hDevice,
 	UNREFERENCED_PARAMETER(hSwapChain);
 	UNREFERENCED_PARAMETER(psRect);
 
-
+	/* Only full display swapchains on this device */
 
 	return PVRSRV_ERROR_NOT_SUPPORTED;
 }
 
+/*
+ * SetDCSrcRect
+ * Called from services.
+ */
 static PVRSRV_ERROR SetDCSrcRect(IMG_HANDLE hDevice,
                                  IMG_HANDLE hSwapChain,
                                  IMG_RECT *psRect)
@@ -591,11 +755,15 @@ static PVRSRV_ERROR SetDCSrcRect(IMG_HANDLE hDevice,
 	UNREFERENCED_PARAMETER(hSwapChain);
 	UNREFERENCED_PARAMETER(psRect);
 
-
+	/* Only full display swapchains on this device */
 
 	return PVRSRV_ERROR_NOT_SUPPORTED;
 }
 
+/*
+ * SetDCDstColourKey
+ * Called from services.
+ */
 static PVRSRV_ERROR SetDCDstColourKey(IMG_HANDLE hDevice,
                                       IMG_HANDLE hSwapChain,
                                       IMG_UINT32 ui32CKColour)
@@ -604,11 +772,15 @@ static PVRSRV_ERROR SetDCDstColourKey(IMG_HANDLE hDevice,
 	UNREFERENCED_PARAMETER(hSwapChain);
 	UNREFERENCED_PARAMETER(ui32CKColour);
 
-
+	/* Don't support DST CK on this device */
 
 	return PVRSRV_ERROR_NOT_SUPPORTED;
 }
 
+/*
+ * SetDCSrcColourKey
+ * Called from services.
+ */
 static PVRSRV_ERROR SetDCSrcColourKey(IMG_HANDLE hDevice,
                                       IMG_HANDLE hSwapChain,
                                       IMG_UINT32 ui32CKColour)
@@ -617,11 +789,15 @@ static PVRSRV_ERROR SetDCSrcColourKey(IMG_HANDLE hDevice,
 	UNREFERENCED_PARAMETER(hSwapChain);
 	UNREFERENCED_PARAMETER(ui32CKColour);
 
-
+	/* Don't support SRC CK on this device */
 
 	return PVRSRV_ERROR_NOT_SUPPORTED;
 }
 
+/*
+ * GetDCBuffers
+ * Called from services.
+ */
 static PVRSRV_ERROR GetDCBuffers(IMG_HANDLE hDevice,
                                  IMG_HANDLE hSwapChain,
                                  IMG_UINT32 *pui32BufferCount,
@@ -632,7 +808,7 @@ static PVRSRV_ERROR GetDCBuffers(IMG_HANDLE hDevice,
 	PVRSRV_ERROR eError;
 	unsigned i;
 
-
+	/* Check parameters */
 	if(!hDevice
 	|| !hSwapChain
 	|| !pui32BufferCount
@@ -655,10 +831,10 @@ static PVRSRV_ERROR GetDCBuffers(IMG_HANDLE hDevice,
 		goto Exit;
 	}
 
-
+	/* Return the buffer count */
 	*pui32BufferCount = (IMG_UINT32)psSwapChain->ulBufferCount;
 
-
+	/* Return the buffers */
 	for(i=0; i<psSwapChain->ulBufferCount; i++)
 	{
 		phBuffer[i] = (IMG_HANDLE)&psSwapChain->psBuffer[i];
@@ -672,6 +848,10 @@ Exit:
 	return eError;
 }
 
+/*
+ * SwapToDCBuffer
+ * Called from services.
+ */
 static PVRSRV_ERROR SwapToDCBuffer(IMG_HANDLE hDevice,
                                    IMG_HANDLE hBuffer,
                                    IMG_UINT32 ui32SwapInterval,
@@ -686,21 +866,17 @@ static PVRSRV_ERROR SwapToDCBuffer(IMG_HANDLE hDevice,
 	UNREFERENCED_PARAMETER(ui32ClipRectCount);
 	UNREFERENCED_PARAMETER(psClipRect);
 
-
-
-	return PVRSRV_OK;
-}
-
-static PVRSRV_ERROR SwapToDCSystem(IMG_HANDLE hDevice,
-                                   IMG_HANDLE hSwapChain)
-{
-	UNREFERENCED_PARAMETER(hDevice);
-	UNREFERENCED_PARAMETER(hSwapChain);
-
+	/* * Nothing to do since Services common code does the work */
 
 	return PVRSRV_OK;
 }
 
+/*
+ * Called after the screen has unblanked, or after any other occasion
+ * when we didn't wait for vsync, but now need to. Not doing this after
+ * unblank leads to screen jitter on some screens.
+ * Returns true if the screen has been deemed to have settled.
+ */
 static OMAPLFB_BOOL WaitForVSyncSettle(OMAPLFB_DEVINFO *psDevInfo)
 {
 		unsigned i;
@@ -715,6 +891,14 @@ static OMAPLFB_BOOL WaitForVSyncSettle(OMAPLFB_DEVINFO *psDevInfo)
 		return OMAPLFB_TRUE;
 }
 
+/*
+ * Swap handler.
+ * Called from the swap chain work queue handler.
+ * There is no need to take the swap chain creation lock in here, or use
+ * some other method of stopping the swap chain from being destroyed.
+ * This is because the swap chain creation lock is taken when queueing work,
+ * and the work queue is flushed before the swap chain is destroyed.
+ */
 void OMAPLFBSwapHandler(OMAPLFB_BUFFER *psBuffer)
 {
 	OMAPLFB_DEVINFO *psDevInfo = psBuffer->psDevInfo;
@@ -767,39 +951,18 @@ void OMAPLFBSwapHandler(OMAPLFB_BUFFER *psBuffer)
 	psDevInfo->sPVRJTable.pfnPVRSRVCmdComplete((IMG_HANDLE)psBuffer->hCmdComplete, IMG_TRUE);
 }
 
-static IMG_BOOL ProcessFlip(IMG_HANDLE  hCmdCookie,
-                            IMG_UINT32  ui32DataSize,
-                            IMG_VOID   *pvData)
+/* Triggered by PVRSRVSwapToDCBuffer */
+static IMG_BOOL ProcessFlipV1(IMG_HANDLE hCmdCookie,
+							  OMAPLFB_DEVINFO *psDevInfo,
+							  OMAPLFB_SWAPCHAIN *psSwapChain,
+							  OMAPLFB_BUFFER *psBuffer,
+							  unsigned long ulSwapInterval)
 {
-	DISPLAYCLASS_FLIP_COMMAND *psFlipCmd;
-	OMAPLFB_DEVINFO *psDevInfo;
-	OMAPLFB_BUFFER *psBuffer;
-	OMAPLFB_SWAPCHAIN *psSwapChain;
-
-
-	if(!hCmdCookie || !pvData)
-	{
-		return IMG_FALSE;
-	}
-
-
-	psFlipCmd = (DISPLAYCLASS_FLIP_COMMAND*)pvData;
-
-	if (psFlipCmd == IMG_NULL || sizeof(DISPLAYCLASS_FLIP_COMMAND) != ui32DataSize)
-	{
-		return IMG_FALSE;
-	}
-
-
-	psDevInfo = (OMAPLFB_DEVINFO*)psFlipCmd->hExtDevice;
-	psBuffer = (OMAPLFB_BUFFER*)psFlipCmd->hExtBuffer;
-	psSwapChain = (OMAPLFB_SWAPCHAIN*) psFlipCmd->hExtSwapChain;
-
 	OMAPLFBCreateSwapChainLock(psDevInfo);
 
+	/* The swap chain has been destroyed */
 	if (SwapChainHasChanged(psDevInfo, psSwapChain))
 	{
-
 		DEBUG_PRINTK((KERN_WARNING DRIVER_PREFIX
 			": %s: Device %u (PVR Device ID %u): The swap chain has been destroyed\n",
 			__FUNCTION__, psDevInfo->uiFBDevID, psDevInfo->uiPVRDevID));
@@ -807,9 +970,42 @@ static IMG_BOOL ProcessFlip(IMG_HANDLE  hCmdCookie,
 	else
 	{
 		psBuffer->hCmdComplete = (OMAPLFB_HANDLE)hCmdCookie;
-		psBuffer->ulSwapInterval = (unsigned long)psFlipCmd->ui32SwapInterval;
-
-		OMAPLFBQueueBufferForSwap(psSwapChain, psBuffer);
+		psBuffer->ulSwapInterval = ulSwapInterval;
+#if defined(CONFIG_DSSCOMP)
+		if (is_tiler_addr(psBuffer->sSysAddr.uiAddr))
+		{
+			IMG_UINT32 w = psBuffer->psDevInfo->sDisplayDim.ui32Width;
+			IMG_UINT32 h = psBuffer->psDevInfo->sDisplayDim.ui32Height;
+			struct dsscomp_setup_dispc_data comp = {
+				.num_mgrs = 1,
+				.mgrs[0].alpha_blending = 1,
+				.num_ovls = 1,
+				.ovls[0].cfg =
+				{
+					.width = w,
+					.win.w = w,
+					.crop.w = w,
+					.height = h,
+					.win.h = h,
+					.crop.h = h,
+					.stride = psBuffer->psDevInfo->sDisplayDim.ui32ByteStride,
+					.color_mode = OMAP_DSS_COLOR_ARGB32,
+					.enabled = 1,
+					.global_alpha = 255,
+				},
+				.mode = DSSCOMP_SETUP_DISPLAY,
+			};
+			struct tiler_pa_info *pas[1] = { NULL };
+			comp.ovls[0].ba = (u32) psBuffer->sSysAddr.uiAddr;
+			dsscomp_gralloc_queue(&comp, pas, true,
+								  (void *) psDevInfo->sPVRJTable.pfnPVRSRVCmdComplete,
+								  (void *) psBuffer->hCmdComplete);
+		}
+		else
+#endif /* defined(CONFIG_DSSCOMP) */
+		{
+			OMAPLFBQueueBufferForSwap(psSwapChain, psBuffer);
+		}
 	}
 
 	OMAPLFBCreateSwapChainUnLock(psDevInfo);
@@ -817,7 +1013,183 @@ static IMG_BOOL ProcessFlip(IMG_HANDLE  hCmdCookie,
 	return IMG_TRUE;
 }
 
+#if defined(CONFIG_DSSCOMP)
 
+/* Triggered by PVRSRVSwapToDCBuffer2 */
+static IMG_BOOL ProcessFlipV2(IMG_HANDLE hCmdCookie,
+							  OMAPLFB_DEVINFO *psDevInfo,
+							  PDC_MEM_INFO *ppsMemInfos,
+							  IMG_UINT32 ui32NumMemInfos,
+							  struct dsscomp_setup_dispc_data *psDssData,
+							  IMG_UINT32 ui32DssDataLength)
+{
+	struct tiler_pa_info *apsTilerPAs[5];
+	IMG_UINT32 i, k;
+
+	if(ui32DssDataLength != sizeof(*psDssData))
+	{
+		WARN(1, "invalid size of private data (%d vs %d)",
+			 ui32DssDataLength, sizeof(*psDssData));
+		return IMG_FALSE;
+	}
+
+	if(psDssData->num_ovls == 0 || ui32NumMemInfos == 0)
+	{
+		WARN(1, "must have at least one layer");
+		return IMG_FALSE;
+	}
+
+	for(i = k = 0; i < ui32NumMemInfos && k < ARRAY_SIZE(apsTilerPAs); i++, k++)
+	{
+		struct tiler_pa_info *psTilerInfo;
+		IMG_CPU_VIRTADDR virtAddr;
+		IMG_CPU_PHYADDR phyAddr;
+		IMG_UINT32 ui32NumPages;
+		IMG_SIZE_T uByteSize;
+		int j;
+
+		psDevInfo->sPVRJTable.pfnPVRSRVDCMemInfoGetByteSize(ppsMemInfos[i], &uByteSize);
+		ui32NumPages = (uByteSize + PAGE_SIZE - 1) >> PAGE_SHIFT;
+
+		apsTilerPAs[k] = NULL;
+
+		psDevInfo->sPVRJTable.pfnPVRSRVDCMemInfoGetCpuPAddr(ppsMemInfos[i], 0, &phyAddr);
+
+		/* NV12 buffers are already mapped to tiler */
+		if(psDssData->ovls[k].cfg.color_mode == OMAP_DSS_COLOR_NV12)
+		{
+			psDssData->ovls[k].ba = (u32)phyAddr.uiAddr;
+
+			psDevInfo->sPVRJTable.pfnPVRSRVDCMemInfoGetCpuPAddr(ppsMemInfos[i], (uByteSize * 2) / 3, &phyAddr);
+			psDssData->ovls[k].uv = (u32)phyAddr.uiAddr;
+			continue;
+		}
+
+		/* Other kinds of buffer may also already be mapped to tiler */
+		if(is_tiler_addr((u32)phyAddr.uiAddr))
+		{
+			psDssData->ovls[k].ba = (u32)phyAddr.uiAddr;
+			continue;
+		}
+
+		psTilerInfo = kzalloc(sizeof(*psTilerInfo), GFP_KERNEL);
+		if(!psTilerInfo)
+		{
+			continue;
+		}
+
+		psTilerInfo->mem = kzalloc(sizeof(*psTilerInfo->mem) * ui32NumPages, GFP_KERNEL);
+		if(!psTilerInfo->mem)
+		{
+			kfree(psTilerInfo);
+			continue;
+		}
+
+		psTilerInfo->num_pg = ui32NumPages;
+		psTilerInfo->memtype = TILER_MEM_USING;
+
+		for(j = 0; j < ui32NumPages; j++)
+		{
+			psDevInfo->sPVRJTable.pfnPVRSRVDCMemInfoGetCpuPAddr(ppsMemInfos[i], j << PAGE_SHIFT, &phyAddr);
+			psTilerInfo->mem[j] = (u32)phyAddr.uiAddr;
+		}
+
+		/* Need base address for in-page offset */
+		psDevInfo->sPVRJTable.pfnPVRSRVDCMemInfoGetCpuVAddr(ppsMemInfos[i], &virtAddr);
+		psDssData->ovls[k].ba = (u32)virtAddr;
+		apsTilerPAs[k] = psTilerInfo;
+	}
+
+	/* Set up cloned layer addresses (but don't duplicate tiler_pas) */
+	for(i = k; i < psDssData->num_ovls && i < ARRAY_SIZE(apsTilerPAs); i++)
+	{
+		unsigned int ix = psDssData->ovls[i].ba;
+		if(ix >= ARRAY_SIZE(apsTilerPAs))
+		{
+			WARN(1, "Invalid clone layer (%u); skipping all cloned layers", ix);
+			psDssData->num_ovls = k;
+			break;
+		}
+		apsTilerPAs[i] = apsTilerPAs[ix];
+		psDssData->ovls[i].ba = psDssData->ovls[ix].ba;
+		psDssData->ovls[i].uv = psDssData->ovls[ix].uv;
+	}
+
+	dsscomp_gralloc_queue(psDssData, apsTilerPAs, false,
+						  (void *)psDevInfo->sPVRJTable.pfnPVRSRVCmdComplete,
+						  (void *)hCmdCookie);
+
+	for(i = 0; i < k; i++)
+	{
+		tiler_pa_free(apsTilerPAs[i]);
+	}
+
+	return IMG_TRUE;
+}
+
+#endif /* defined(CONFIG_DSSCOMP) */
+
+/* Command processing flip handler function.  Called from services. */
+static IMG_BOOL ProcessFlip(IMG_HANDLE  hCmdCookie,
+                            IMG_UINT32  ui32DataSize,
+                            IMG_VOID   *pvData)
+{
+	DISPLAYCLASS_FLIP_COMMAND *psFlipCmd;
+	OMAPLFB_DEVINFO *psDevInfo;
+
+	/* Check parameters  */
+	if(!hCmdCookie || !pvData)
+	{
+		return IMG_FALSE;
+	}
+
+	/* Validate data packet  */
+	psFlipCmd = (DISPLAYCLASS_FLIP_COMMAND*)pvData;
+
+	if (psFlipCmd == IMG_NULL)
+	{
+		return IMG_FALSE;
+	}
+
+	psDevInfo = (OMAPLFB_DEVINFO*)psFlipCmd->hExtDevice;
+
+	if(psFlipCmd->hExtBuffer)
+	{
+		return ProcessFlipV1(hCmdCookie,
+							 psDevInfo,
+							 psFlipCmd->hExtSwapChain,
+							 psFlipCmd->hExtBuffer,
+							 psFlipCmd->ui32SwapInterval);
+	}
+	else
+	{
+#if defined(CONFIG_DSSCOMP)
+		DISPLAYCLASS_FLIP_COMMAND2 *psFlipCmd2;
+		psFlipCmd2 = (DISPLAYCLASS_FLIP_COMMAND2 *)pvData;
+		return ProcessFlipV2(hCmdCookie,
+							 psDevInfo,
+							 psFlipCmd2->ppsMemInfos,
+							 psFlipCmd2->ui32NumMemInfos,
+							 psFlipCmd2->pvPrivData,
+							 psFlipCmd2->ui32PrivDataLength);
+#else
+		BUG();
+#endif
+	}
+}
+
+/*!
+******************************************************************************
+
+ @Function	OMAPLFBInitFBDev
+
+ @Description specifies devices in the systems memory map
+
+ @Input    psSysData - sys data
+
+ @Return   OMAPLFB_ERROR  :
+
+******************************************************************************/
 static OMAPLFB_ERROR OMAPLFBInitFBDev(OMAPLFB_DEVINFO *psDevInfo)
 {
 	struct fb_info *psLINFBInfo;
@@ -828,11 +1200,7 @@ static OMAPLFB_ERROR OMAPLFBInitFBDev(OMAPLFB_DEVINFO *psDevInfo)
 	unsigned long ulLCM;
 	unsigned uiFBDevID = psDevInfo->uiFBDevID;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,38)
-        console_lock();
-#else
-        acquire_console_sem();
-#endif
+	OMAPLFB_CONSOLE_LOCK();
 
 	psLINFBInfo = registered_fb[uiFBDevID];
 	if (psLINFBInfo == NULL)
@@ -845,7 +1213,10 @@ static OMAPLFB_ERROR OMAPLFBInitFBDev(OMAPLFB_DEVINFO *psDevInfo)
 					psLINFBInfo->screen_size :
 					psLINFBInfo->fix.smem_len;
 
-
+	/*
+	 * Try and filter out invalid FB info structures (a problem
+	 * seen on some OMAP3 systems).
+	 */
 	if (FBSize == 0 || psLINFBInfo->fix.line_length == 0)
 	{
 		eError = OMAPLFB_ERROR_INVALID_DEVICE;
@@ -907,7 +1278,87 @@ static OMAPLFB_ERROR OMAPLFBInitFBDev(OMAPLFB_DEVINFO *psDevInfo)
 			": Device %u: LCM of stride and page size: %lu\n",
 			psDevInfo->uiFBDevID, ulLCM));
 
+	/* Additional implementation specific information */
+	OMAPLFBPrintInfo(psDevInfo);
 
+#if defined(CONFIG_DSSCOMP)
+	{
+		/* for some reason we need at least 3 buffers in the swap chain */
+		int n = FBSize / RoundUpToMultiple(psLINFBInfo->fix.line_length * psLINFBInfo->var.yres, ulLCM);
+		int res;
+		int i, x, y, w;
+		ion_phys_addr_t phys;
+		size_t size;
+		struct tiler_view_t view;
+
+		struct omap_ion_tiler_alloc_data sAllocData =
+		{
+			/* TILER will align width to 128-bytes */
+			/* however, SGX must have full page width */
+			.w = ALIGN(psLINFBInfo->var.xres, PAGE_SIZE / (psLINFBInfo->var.bits_per_pixel / 8)),
+			.h = psLINFBInfo->var.yres,
+			.fmt = psLINFBInfo->var.bits_per_pixel == 16 ? TILER_PIXEL_FMT_16BIT : TILER_PIXEL_FMT_32BIT,
+			.flags = 0,
+		};
+
+		printk(KERN_DEBUG DRIVER_PREFIX
+			   " %s: Device %u: Requesting %d TILER 2D framebuffers\n",
+			   __FUNCTION__, uiFBDevID, n);
+
+		/* INTEGRATION_POINT: limit to MAX 3 FBs to save TILER container space */
+		if (n > 3)
+			n = 3;
+
+		sAllocData.w *= n;
+
+		psPVRFBInfo->uiBytesPerPixel = psLINFBInfo->var.bits_per_pixel >> 3;
+		psPVRFBInfo->bIs2D = OMAPLFB_TRUE;
+
+		res = omap_ion_tiler_alloc(gpsIONClient, &sAllocData);
+		psPVRFBInfo->psIONHandle = sAllocData.handle;
+		if (res < 0)
+		{
+			printk(KERN_ERR DRIVER_PREFIX
+				   " %s: Device %u: Could not allocate 2D framebuffer(%d)\n",
+				   __FUNCTION__, uiFBDevID, res);
+			goto ErrorModPut;
+		}
+
+		psLINFBInfo->fix.smem_start = ion_phys(gpsIONClient, sAllocData.handle, &phys, &size);
+
+		psPVRFBInfo->sSysAddr.uiAddr = phys;
+		psPVRFBInfo->sCPUVAddr = 0;
+		psPVRFBInfo->ulWidth = psLINFBInfo->var.xres;
+		psPVRFBInfo->ulHeight = psLINFBInfo->var.yres;
+
+		psPVRFBInfo->ulByteStride = PAGE_ALIGN(psPVRFBInfo->ulWidth * psPVRFBInfo->uiBytesPerPixel);
+		w = psPVRFBInfo->ulByteStride >> PAGE_SHIFT;
+
+		/* this is an "effective" FB size to get correct number of buffers */
+		psPVRFBInfo->ulFBSize = sAllocData.h * n * psPVRFBInfo->ulByteStride;
+		psPVRFBInfo->psPageList = kzalloc(w * n * psPVRFBInfo->ulHeight * sizeof(*psPVRFBInfo->psPageList), GFP_KERNEL);
+		if (!psPVRFBInfo->psPageList)
+		{
+			printk(KERN_WARNING DRIVER_PREFIX ": %s: Device %u: Could not allocate page list\n", __FUNCTION__, psDevInfo->uiFBDevID);
+			ion_free(gpsIONClient, sAllocData.handle);
+			goto ErrorModPut;
+		}
+
+		tilview_create(&view, phys, psDevInfo->sFBInfo.ulWidth, psDevInfo->sFBInfo.ulHeight);
+		for(i = 0; i < n; i++)
+		{
+			for(y = 0; y < psDevInfo->sFBInfo.ulHeight; y++)
+			{
+				for(x = 0; x < w; x++)
+				{
+					psPVRFBInfo->psPageList[i * psDevInfo->sFBInfo.ulHeight * w + y * w + x].uiAddr =
+					phys + view.v_inc * y + ((x + i * w) << PAGE_SHIFT);
+				}
+			}
+		}
+	}
+#else /* defined(CONFIG_DSSCOMP) */
+	/* System Surface */
 	psPVRFBInfo->sSysAddr.uiAddr = psLINFBInfo->fix.smem_start;
 	psPVRFBInfo->sCPUVAddr = psLINFBInfo->screen_base;
 
@@ -915,8 +1366,15 @@ static OMAPLFB_ERROR OMAPLFBInitFBDev(OMAPLFB_DEVINFO *psDevInfo)
 	psPVRFBInfo->ulHeight = psLINFBInfo->var.yres;
 	psPVRFBInfo->ulByteStride =  psLINFBInfo->fix.line_length;
 	psPVRFBInfo->ulFBSize = FBSize;
+#endif /* defined(CONFIG_DSSCOMP) */
+
 	psPVRFBInfo->ulBufferSize = psPVRFBInfo->ulHeight * psPVRFBInfo->ulByteStride;
 
+	/* Round the buffer size up to a multiple of the number of pages
+	 * and the byte stride.
+	 * This is used internally, to ensure buffers start on page
+	 * boundaries, for the benefit of PVR Services.
+	 */
 	psPVRFBInfo->ulRoundedBufferSize = RoundUpToMultiple(psPVRFBInfo->ulBufferSize, ulLCM);
 
 	if(psLINFBInfo->var.bits_per_pixel == 16)
@@ -964,7 +1422,7 @@ static OMAPLFB_ERROR OMAPLFBInitFBDev(OMAPLFB_DEVINFO *psDevInfo)
 	psDevInfo->sFBInfo.ulPhysicalHeightmm =
 		((int)psLINFBInfo->var.height > 0) ? psLINFBInfo->var.height : 54;
 
-
+	/* System Surface */
 	psDevInfo->sFBInfo.sSysAddr.uiAddr = psPVRFBInfo->sSysAddr.uiAddr;
 	psDevInfo->sFBInfo.sCPUVAddr = psPVRFBInfo->sCPUVAddr;
 
@@ -974,11 +1432,8 @@ static OMAPLFB_ERROR OMAPLFBInitFBDev(OMAPLFB_DEVINFO *psDevInfo)
 ErrorModPut:
 	module_put(psLINFBOwner);
 ErrorRelSem:
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,38)
-        console_unlock();
-#else
-        release_console_sem();
-#endif
+	OMAPLFB_CONSOLE_UNLOCK();
+
 	return eError;
 }
 
@@ -987,11 +1442,18 @@ static void OMAPLFBDeInitFBDev(OMAPLFB_DEVINFO *psDevInfo)
 	struct fb_info *psLINFBInfo = psDevInfo->psLINFBInfo;
 	struct module *psLINFBOwner;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,38)
-        console_lock();
-#else
-        acquire_console_sem();
-#endif
+	OMAPLFB_CONSOLE_LOCK();
+
+#if defined(CONFIG_DSSCOMP)
+	{
+		OMAPLFB_FBINFO *psPVRFBInfo = &psDevInfo->sFBInfo;
+		kfree(psPVRFBInfo->psPageList);
+		if (psPVRFBInfo->psIONHandle)
+		{
+			ion_free(gpsIONClient, psPVRFBInfo->psIONHandle);
+		}
+	}
+#endif /* defined(CONFIG_DSSCOMP) */
 
 	psLINFBOwner = psLINFBInfo->fbops->owner;
 
@@ -1001,11 +1463,8 @@ static void OMAPLFBDeInitFBDev(OMAPLFB_DEVINFO *psDevInfo)
 	}
 
 	module_put(psLINFBOwner);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,38)
-        console_unlock();
-#else
-        release_console_sem();
-#endif
+
+	OMAPLFB_CONSOLE_UNLOCK();
 }
 
 static OMAPLFB_DEVINFO *OMAPLFBInitDev(unsigned uiFBDevID)
@@ -1014,7 +1473,7 @@ static OMAPLFB_DEVINFO *OMAPLFBInitDev(unsigned uiFBDevID)
 	IMG_UINT32		aui32SyncCountList[OMAPLFB_COMMAND_COUNT][2];
 	OMAPLFB_DEVINFO		*psDevInfo = NULL;
 
-
+	/* Allocate device info. structure */
 	psDevInfo = (OMAPLFB_DEVINFO *)OMAPLFBAllocKernelMem(sizeof(OMAPLFB_DEVINFO));
 
 	if(psDevInfo == NULL)
@@ -1025,21 +1484,26 @@ static OMAPLFB_DEVINFO *OMAPLFBInitDev(unsigned uiFBDevID)
 		goto ErrorExit;
 	}
 
-
+	/* Any fields not set will be zero */
 	memset(psDevInfo, 0, sizeof(OMAPLFB_DEVINFO));
 
 	psDevInfo->uiFBDevID = uiFBDevID;
 
-
+	/* Get the kernel services function table */
 	if(!(*gpfnGetPVRJTable)(&psDevInfo->sPVRJTable))
 	{
 		goto ErrorFreeDevInfo;
 	}
 #ifdef FBDEV_PRESENT
-
+	/* Save private fbdev information structure in the dev. info. */
 	if(OMAPLFBInitFBDev(psDevInfo) != OMAPLFB_OK)
 	{
-
+		/*
+		 * Leave it to OMAPLFBInitFBDev to print an error message, if
+		 * required.  The function may have failed because
+		 * there is no Linux framebuffer device corresponding
+		 * to the device ID.
+		 */
 		goto ErrorFreeDevInfo;
 	}
 
@@ -1064,14 +1528,14 @@ static OMAPLFB_DEVINFO *OMAPLFBInitDev(unsigned uiFBDevID)
 		": Device %u: Maximum number of swap chain buffers: %u\n",
 		psDevInfo->uiFBDevID, psDevInfo->sDisplayInfo.ui32MaxSwapChainBuffers));
 
-
+	/* Setup system buffer */
 	psDevInfo->sSystemBuffer.sSysAddr = psDevInfo->sFBInfo.sSysAddr;
 	psDevInfo->sSystemBuffer.sCPUVAddr = psDevInfo->sFBInfo.sCPUVAddr;
 	psDevInfo->sSystemBuffer.psDevInfo = psDevInfo;
 
 	OMAPLFBInitBufferForSwap(&psDevInfo->sSystemBuffer);
 #else
-                psDevInfo->sSystemBuffer.sCPUVAddr = 0x100;
+psDevInfo->sSystemBuffer.sCPUVAddr = 0x100;
 //                psDevInfo->sSystemBuffer.ulBufferSize = 600*3200;
 
                 psDevInfo->sDisplayFormat.pixelformat = 20;
@@ -1083,6 +1547,9 @@ static OMAPLFB_DEVINFO *OMAPLFBInitDev(unsigned uiFBDevID)
 #endif
 
 
+	/*
+		Setup the DC Jtable so SRVKM can call into this driver
+	*/
 	psDevInfo->sDCJTable.ui32TableSize = sizeof(PVRSRV_DC_SRV2DISP_KMJTABLE);
 	psDevInfo->sDCJTable.pfnOpenDCDevice = OpenDCDevice;
 	psDevInfo->sDCJTable.pfnCloseDCDevice = CloseDCDevice;
@@ -1099,10 +1566,9 @@ static OMAPLFB_DEVINFO *OMAPLFBInitDev(unsigned uiFBDevID)
 	psDevInfo->sDCJTable.pfnSetDCSrcColourKey = SetDCSrcColourKey;
 	psDevInfo->sDCJTable.pfnGetDCBuffers = GetDCBuffers;
 	psDevInfo->sDCJTable.pfnSwapToDCBuffer = SwapToDCBuffer;
-	psDevInfo->sDCJTable.pfnSwapToDCSystem = SwapToDCSystem;
 	psDevInfo->sDCJTable.pfnSetDCState = SetDCState;
 
-
+	/* Register device with services and retrieve device index */
 	if(psDevInfo->sPVRJTable.pfnPVRSRVRegisterDCDevice(
 		&psDevInfo->sDCJTable,
 		&psDevInfo->uiPVRDevID) != PVRSRV_OK)
@@ -1116,17 +1582,18 @@ static OMAPLFB_DEVINFO *OMAPLFBInitDev(unsigned uiFBDevID)
 		": Device %u: PVR Device ID: %u\n",
 		psDevInfo->uiFBDevID, psDevInfo->uiPVRDevID));
 
-
+	/* Setup private command processing function table ... */
 	pfnCmdProcList[DC_FLIP_COMMAND] = ProcessFlip;
 
+	/* ... and associated sync count(s) */
+	aui32SyncCountList[DC_FLIP_COMMAND][0] = 0; /* writes */
+	aui32SyncCountList[DC_FLIP_COMMAND][1] = 10; /* reads */
 
-	aui32SyncCountList[DC_FLIP_COMMAND][0] = 0;
-	aui32SyncCountList[DC_FLIP_COMMAND][1] = 2;
-
-
-
-
-
+	/*
+		Register private command processing functions with
+		the Command Queue Manager and setup the general
+		command complete function in the devinfo.
+	*/
 	if (psDevInfo->sPVRJTable.pfnPVRSRVRegisterCmdProcList(psDevInfo->uiPVRDevID,
 															&pfnCmdProcList[0],
 															aui32SyncCountList,
@@ -1171,14 +1638,18 @@ OMAPLFB_ERROR OMAPLFBInit(void)
 		return OMAPLFB_ERROR_INIT_FAILURE;
 	}
 
-
+	/*
+	 * We search for frame buffer devices backwards, as the last device
+	 * registered with PVR Services will be the first device enumerated
+	 * by PVR Services.
+	 */
 	for(i = uiMaxFBDevIDPlusOne; i-- != 0;)
 	{
 		OMAPLFB_DEVINFO *psDevInfo = OMAPLFBInitDev(i);
 
 		if (psDevInfo != NULL)
 		{
-
+			/* Set the top-level anchor */
 			OMAPLFBSetDevInfoPtr(psDevInfo->uiFBDevID, psDevInfo);
 			uiDevicesFound++;
 		}
@@ -1187,6 +1658,10 @@ OMAPLFB_ERROR OMAPLFBInit(void)
 	return (uiDevicesFound != 0) ? OMAPLFB_OK : OMAPLFB_ERROR_INIT_FAILURE;
 }
 
+/*
+ *	OMAPLFBDeInitDev
+ *	DeInitialises one device
+ */
 static OMAPLFB_BOOL OMAPLFBDeInitDev(OMAPLFB_DEVINFO *psDevInfo)
 {
 	PVRSRV_DC_DISP2SRV_KMJTABLE *psPVRJTable = &psDevInfo->sPVRJTable;
@@ -1211,24 +1686,31 @@ static OMAPLFB_BOOL OMAPLFBDeInitDev(OMAPLFB_DEVINFO *psDevInfo)
 		return OMAPLFB_FALSE;
 	}
 
-
+	/*
+	 * Remove display class device from kernel services device
+	 * register.
+	 */
 	if (psPVRJTable->pfnPVRSRVRemoveDCDevice(psDevInfo->uiPVRDevID) != PVRSRV_OK)
 	{
 		printk(KERN_ERR DRIVER_PREFIX
 			": %s: Device %u: PVR Device %u: Couldn't remove device from PVR Services\n", __FUNCTION__, psDevInfo->uiFBDevID, psDevInfo->uiPVRDevID);
 		return OMAPLFB_FALSE;
 	}
-#ifdef FBDEV_PRESENT
+
 	OMAPLFBDeInitFBDev(psDevInfo);
-#endif
+
 	OMAPLFBSetDevInfoPtr(psDevInfo->uiFBDevID, NULL);
 
-
+	/* De-allocate data structure */
 	OMAPLFBFreeKernelMem(psDevInfo);
 
 	return OMAPLFB_TRUE;
 }
 
+/*
+ *	OMAPLFBDeInit
+ *	Deinitialises the display class device component of the FBDev
+ */
 OMAPLFB_ERROR OMAPLFBDeInit(void)
 {
 	unsigned uiMaxFBDevIDPlusOne = OMAPLFBMaxFBDevIDPlusOne();
@@ -1247,3 +1729,7 @@ OMAPLFB_ERROR OMAPLFBDeInit(void)
 
 	return (bError) ? OMAPLFB_ERROR_INIT_FAILURE : OMAPLFB_OK;
 }
+
+/******************************************************************************
+ End of file (omaplfb_displayclass.c)
+******************************************************************************/

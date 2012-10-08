@@ -47,7 +47,7 @@
 
 #define DEVNAME             "bccat"
 #define DRVNAME             DEVNAME
-#define DEVICE_COUNT        1
+#define DEVICE_COUNT        10
 #define BC_EXAMPLE_NUM_BUFFERS  3
 #define BUFFERCLASS_DEVICE_NAME "Example Bufferclass Device (SW)"
 
@@ -324,6 +324,15 @@ static int BC_CreateBuffers(int id, bc_buf_params_t *p)
         return -EINVAL;
 
     switch (p->fourcc) {
+    case BC_PIX_FMT_YV12:
+        pixel_fmt = PVRSRV_PIXEL_FORMAT_YV12;
+        stride = p->width;
+        break;
+    case BC_PIX_FMT_I420:
+        pixel_fmt = PVRSRV_PIXEL_FORMAT_I420;
+        stride = p->width;
+        break;
+
     case BC_PIX_FMT_NV12:
         pixel_fmt = PVRSRV_PIXEL_FORMAT_NV12;
         stride = p->width;
@@ -380,6 +389,12 @@ static int BC_CreateBuffers(int id, bc_buf_params_t *p)
     ulSize = p->height * stride;
     if (pixel_fmt == PVRSRV_PIXEL_FORMAT_NV12)
         ulSize += (stride >> 1) * (p->height >> 1) << 1;
+
+    if ((pixel_fmt == PVRSRV_PIXEL_FORMAT_I420) || (pixel_fmt == PVRSRV_PIXEL_FORMAT_YV12) )
+    {
+        ulSize += (stride >> 1) * (p->height >> 1);
+        ulSize += (stride >> 1) * (p->height >> 1);
+    }
 
     for (i=0; i < p->count; i++) {
         if (psDevInfo->buf_type == BC_MEMORY_MMAP) {
@@ -662,7 +677,8 @@ static int __init bc_cat_init(void)
 #ifdef PLAT_TI8168
      width_align = 8;
 #else
-     width_align = cpu_is_omap3530() && ( omap_rev() < OMAP3430_REV_ES3_0 ) ? 32 : 8;
+     width_align = 8;
+     //width_align = cpu_is_omap3530() && ( omap_rev() < OMAP3430_REV_ES3_0 ) ? 32 : 8;
 #endif
 
     major = register_chrdev(0, DEVNAME, &bc_cat_fops);

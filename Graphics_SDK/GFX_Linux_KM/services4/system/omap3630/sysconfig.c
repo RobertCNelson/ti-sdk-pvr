@@ -471,6 +471,7 @@ PVRSRV_ERROR SysInitialise(IMG_VOID)
 		OSReservePhys(TimerRegPhysBase,
 				  4,
 				  PVRSRV_HAP_MULTI_PROCESS|PVRSRV_HAP_UNCACHED,
+				  IMG_NULL,
 				  (IMG_VOID **)&gpsSysData->pvSOCTimerRegisterKM,
 				  &gpsSysData->hSOCTimerRegisterOSMemHandle);
 	}

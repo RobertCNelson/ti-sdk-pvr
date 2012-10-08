@@ -27,7 +27,6 @@
 #if !defined(__SOCCONFIG_H__)
 #define __SOCCONFIG_H__
 
-#include "syscommon.h"
 
 #define VS_PRODUCT_NAME	"TI81xx"
 

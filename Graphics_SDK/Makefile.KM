@@ -5,6 +5,19 @@ OMAPES=INVALIDVAL
 FBDEV=yes
 SUPPORT_XORG=0
 EGLIMAGE=0
+
+ifeq ($(TI_DEVICE),am335x-evm)
+OMAPES=8.x
+else ifeq ($(TI_DEVICE),am37x-evm)
+OMAPES=5.x
+else ifeq ($(TI_DEVICE),beagleboard)
+OMAPES=5.x
+else ifeq ($(TI_DEVICE),am3517-evm)
+OMAPES=3.x
+else
+OMAPES=INVALIDVAL
+endif
+
   ifeq ($(OMAPES),3.x)
     ifeq ($(BUILD),debug)
       GFX_LIB_SRCPATH := $(GFX_DBG_ES3_LIB_SRCPATH)
@@ -230,25 +243,34 @@ endif
   ifeq ($(OMAPES),8.x)
   ifeq ($(SUPPORT_XORG),1)
 	@cp $(GFX_PKG_TARGETFS_PATH)/335x_xorg-demo $(TARGETFS_INSTALL_DIR)/etc/init.d/335x-demo
+	@cp $(GFX_PKG_TARGETFS_PATH)/335x_xorg-demo $(TARGETFS_INSTALL_DIR)/opt/gfxsdkdemos/335x-demo
   else
 	@cp $(GFX_PKG_TARGETFS_PATH)/335x-demo $(TARGETFS_INSTALL_DIR)/etc/init.d
+	@cp $(GFX_PKG_TARGETFS_PATH)/335x-demo $(TARGETFS_INSTALL_DIR)/opt/gfxsdkdemos
   endif
 	@chmod 755 $(TARGETFS_INSTALL_DIR)/etc/init.d/335x-demo
+	@chmod 755 $(TARGETFS_INSTALL_DIR)/opt/gfxsdkdemos/335x-demo
   else
   ifeq ($(OMAPES),6.x)
   ifeq ($(SUPPORT_XORG),1)
 	@cp $(GFX_PKG_TARGETFS_PATH)/38xx_xorg-demo $(TARGETFS_INSTALL_DIR)/etc/init.d/38xx-demo
+	@cp $(GFX_PKG_TARGETFS_PATH)/38xx_xorg-demo $(TARGETFS_INSTALL_DIR)/opt/gfxsdkdemos/38xx-demo
   else
 	@cp $(GFX_PKG_TARGETFS_PATH)/38xx-demo $(TARGETFS_INSTALL_DIR)/etc/init.d
+	@cp $(GFX_PKG_TARGETFS_PATH)/38xx-demo $(TARGETFS_INSTALL_DIR)/opt/gfxsdkdemos
   endif
 	@chmod 755 $(TARGETFS_INSTALL_DIR)/etc/init.d/38xx-demo
+	@chmod 755 $(TARGETFS_INSTALL_DIR)/opt/gfxsdkdemos/38xx-demo
   else
   ifeq ($(SUPPORT_XORG),1)
 	@cp $(GFX_PKG_TARGETFS_PATH)/omap_xorg-demo $(TARGETFS_INSTALL_DIR)/etc/init.d/omap-demo
+	@cp $(GFX_PKG_TARGETFS_PATH)/omap_xorg-demo $(TARGETFS_INSTALL_DIR)/opt/gfxsdkdemos/omap-demo
   else
 	@cp $(GFX_PKG_TARGETFS_PATH)/omap-demo $(TARGETFS_INSTALL_DIR)/etc/init.d
+	@cp $(GFX_PKG_TARGETFS_PATH)/omap-demo $(TARGETFS_INSTALL_DIR)/opt/gfxsdkdemos
   endif
 	@chmod 755 $(TARGETFS_INSTALL_DIR)/etc/init.d/omap-demo
+	@chmod 755 $(TARGETFS_INSTALL_DIR)/opt/gfxsdkdemos
   endif
   endif
   ifeq ($(SUPPORT_XORG),1)
@@ -260,15 +282,19 @@ endif
   endif
 	@cp $(GFX_PKG_TARGETFS_PATH)/devmem2 $(TARGETFS_INSTALL_DIR)/etc/init.d
 	@chmod 755 $(TARGETFS_INSTALL_DIR)/etc/init.d/devmem2
+	@cp $(GFX_PKG_TARGETFS_PATH)/devmem2 $(TARGETFS_INSTALL_DIR)/opt/gfxsdkdemos
+	@chmod 755 $(TARGETFS_INSTALL_DIR)/opt/gfxsdkdemos/devmem2
   ifeq ($(SUPPORT_XORG),1)
 	@cp $(GFX_PKG_TARGETFS_PATH)/rc_dri.pvr $(TARGETFS_INSTALL_DIR)/etc/init.d/rc.pvr
+	@cp $(GFX_PKG_TARGETFS_PATH)/rc_dri.pvr $(TARGETFS_INSTALL_DIR)/opt/gfxsdkdemos/rc.pvr
   else
 	@cp $(GFX_PKG_TARGETFS_PATH)/rc.pvr $(TARGETFS_INSTALL_DIR)/etc/init.d
+	@cp $(GFX_PKG_TARGETFS_PATH)/rc.pvr $(TARGETFS_INSTALL_DIR)/opt/gfxsdkdemos
   endif
-	@echo "installing and adding kernel modules to target file system..."
-	@export PATH=$(CSTOOL_PATH):$(PATH) && \
-		export CROSS_COMPILE=$(CSTOOL_PREFIX) && \
-		./addkernelmodules.sh $(KERNEL_INSTALL_DIR) $(TARGETFS_INSTALL_DIR)
+#	@echo "installing and adding kernel modules to target file system..."
+#	@export PATH=$(CSTOOL_PATH):$(PATH) && \
+#		export CROSS_COMPILE=$(CSTOOL_PREFIX) && \
+#		./addkernelmodules.sh $(KERNEL_INSTALL_DIR) $(TARGETFS_INSTALL_DIR)
 
 	@echo "copying user space graphics libraries to target file system..."
   ifeq ($(OMAPES),3.x)
@@ -279,6 +305,7 @@ endif
 	@cp -rf $(GFX_REL_ES3_LIB_SRCPATH)/libGLES_CM_eglimage.so $(GFX_LIBRARY_TARGET_PATH)/gfx_rel_es3.x/libGLES_CM.so
 	@cp -rf $(GFX_REL_ES3_LIB_SRCPATH)/libIMGegl_eglimage.so $(GFX_LIBRARY_TARGET_PATH)/gfx_rel_es3.x/libIMGegl.so
 	@cp -rf $(GFX_REL_ES3_LIB_SRCPATH)/libEGL_eglimage.so $(GFX_LIBRARY_TARGET_PATH)/gfx_rel_es3.x/libEGL.so
+	@cp -rf $(GFX_REL_ES3_LIB_SRCPATH)/libglslcompiler_eglimage.so $(GFX_LIBRARY_TARGET_PATH)/gfx_rel_es3.x/libglslcompiler.so
        endif
        ifeq ($(SUPPORT_XORG),1)
 	@cp -rf $(GFX_REL_ES3_LIB_SRCPATH)/libsrv_um_dri.so $(GFX_LIBRARY_TARGET_PATH)/gfx_rel_es3.x/libsrv_um.so
@@ -293,6 +320,7 @@ endif
 	@cp -rf $(GFX_DBG_ES3_LIB_SRCPATH)/libGLES_CM_eglimage.so $(GFX_LIBRARY_TARGET_PATH)/gfx_dbg_es3.x/libGLES_CM.so
 	@cp -rf $(GFX_DBG_ES3_LIB_SRCPATH)/libIMGegl_eglimage.so $(GFX_LIBRARY_TARGET_PATH)/gfx_dbg_es3.x/libIMGegl.so
 	@cp -rf $(GFX_DBG_ES3_LIB_SRCPATH)/libEGL_eglimage.so $(GFX_LIBRARY_TARGET_PATH)/gfx_dbg_es3.x/libEGL.so
+	@cp -rf $(GFX_DBG_ES3_LIB_SRCPATH)/libglslcompiler_eglimage.so $(GFX_LIBRARY_TARGET_PATH)/gfx_dbg_es3.x/libglslcompiler.so
        endif
        ifeq ($(SUPPORT_XORG),1)
 	@cp -rf $(GFX_DBG_ES3_LIB_SRCPATH)/libsrv_um_dri.so $(GFX_LIBRARY_TARGET_PATH)/gfx_dbg_es3.x/libsrv_um.so
@@ -311,6 +339,7 @@ endif
 	@cp -rf $(GFX_REL_ES5_LIB_SRCPATH)/libGLES_CM_eglimage.so $(GFX_LIBRARY_TARGET_PATH)/gfx_rel_es5.x/libGLES_CM.so
 	@cp -rf $(GFX_REL_ES5_LIB_SRCPATH)/libIMGegl_eglimage.so $(GFX_LIBRARY_TARGET_PATH)/gfx_rel_es5.x/libIMGegl.so
 	@cp -rf $(GFX_REL_ES5_LIB_SRCPATH)/libEGL_eglimage.so $(GFX_LIBRARY_TARGET_PATH)/gfx_rel_es5.x/libEGL.so
+	@cp -rf $(GFX_REL_ES5_LIB_SRCPATH)/libglslcompiler_eglimage.so $(GFX_LIBRARY_TARGET_PATH)/gfx_rel_es5.x/libglslcompiler.so
        endif
        ifeq ($(SUPPORT_XORG),1)
 	@cp -rf $(GFX_REL_ES5_LIB_SRCPATH)/libsrv_um_dri.so $(GFX_LIBRARY_TARGET_PATH)/gfx_rel_es5.x/libsrv_um.so
@@ -325,6 +354,7 @@ endif
 	@cp -rf $(GFX_DBG_ES5_LIB_SRCPATH)/libGLES_CM_eglimage.so $(GFX_LIBRARY_TARGET_PATH)/gfx_dbg_es5.x/libGLES_CM.so
 	@cp -rf $(GFX_DBG_ES5_LIB_SRCPATH)/libIMGegl_eglimage.so $(GFX_LIBRARY_TARGET_PATH)/gfx_dbg_es5.x/libIMGegl.so
 	@cp -rf $(GFX_DBG_ES5_LIB_SRCPATH)/libEGL_eglimage.so $(GFX_LIBRARY_TARGET_PATH)/gfx_dbg_es5.x/libEGL.so
+	@cp -rf $(GFX_DBG_ES5_LIB_SRCPATH)/libglslcompiler_eglimage.so $(GFX_LIBRARY_TARGET_PATH)/gfx_dbg_es5.x/libglslcompiler.so
        endif
        ifeq ($(SUPPORT_XORG),1)
 	@cp -rf $(GFX_DBG_ES5_LIB_SRCPATH)/libsrv_um_dri.so $(GFX_LIBRARY_TARGET_PATH)/gfx_dbg_es5.x/libsrv_um.so
@@ -343,6 +373,7 @@ endif
 	@cp -rf $(GFX_REL_ES6_LIB_SRCPATH)/libGLES_CM_eglimage.so $(GFX_LIBRARY_TARGET_PATH)/gfx_rel_es6.x/libGLES_CM.so
 	@cp -rf $(GFX_REL_ES6_LIB_SRCPATH)/libIMGegl_eglimage.so $(GFX_LIBRARY_TARGET_PATH)/gfx_rel_es6.x/libIMGegl.so
 	@cp -rf $(GFX_REL_ES6_LIB_SRCPATH)/libEGL_eglimage.so $(GFX_LIBRARY_TARGET_PATH)/gfx_rel_es6.x/libEGL.so
+	@cp -rf $(GFX_REL_ES6_LIB_SRCPATH)/libglslcompiler_eglimage.so $(GFX_LIBRARY_TARGET_PATH)/gfx_rel_es6.x/libglslcompiler.so
        endif
        ifeq ($(SUPPORT_XORG),1)
 	@cp -rf $(GFX_REL_ES6_LIB_SRCPATH)/libsrv_um_dri.so $(GFX_LIBRARY_TARGET_PATH)/gfx_rel_es6.x/libsrv_um.so
@@ -357,6 +388,7 @@ endif
 	@cp -rf $(GFX_DBG_ES6_LIB_SRCPATH)/libGLES_CM_eglimage.so $(GFX_LIBRARY_TARGET_PATH)/gfx_dbg_es6.x/libGLES_CM.so
 	@cp -rf $(GFX_DBG_ES6_LIB_SRCPATH)/libIMGegl_eglimage.so $(GFX_LIBRARY_TARGET_PATH)/gfx_dbg_es6.x/libIMGegl.so
 	@cp -rf $(GFX_DBG_ES6_LIB_SRCPATH)/libEGL_eglimage.so $(GFX_LIBRARY_TARGET_PATH)/gfx_dbg_es6.x/libEGL.so
+	@cp -rf $(GFX_DBG_ES6_LIB_SRCPATH)/libglslcompiler_eglimage.so $(GFX_LIBRARY_TARGET_PATH)/gfx_dbg_es6.x/libglslcompiler.so
        endif
        ifeq ($(SUPPORT_XORG),1)
 	@cp -rf $(GFX_DBG_ES6_LIB_SRCPATH)/libsrv_um_dri.so $(GFX_LIBRARY_TARGET_PATH)/gfx_dbg_es6.x/libsrv_um.so
@@ -374,6 +406,7 @@ endif
 	@cp -rf $(GFX_REL_ES8_LIB_SRCPATH)/libGLES_CM_eglimage.so $(GFX_LIBRARY_TARGET_PATH)/gfx_rel_es8.x/libGLES_CM.so
 	@cp -rf $(GFX_REL_ES8_LIB_SRCPATH)/libIMGegl_eglimage.so $(GFX_LIBRARY_TARGET_PATH)/gfx_rel_es8.x/libIMGegl.so
 	@cp -rf $(GFX_REL_ES8_LIB_SRCPATH)/libEGL_eglimage.so $(GFX_LIBRARY_TARGET_PATH)/gfx_rel_es8.x/libEGL.so
+	@cp -rf $(GFX_REL_ES8_LIB_SRCPATH)/libglslcompiler_eglimage.so $(GFX_LIBRARY_TARGET_PATH)/gfx_rel_es8.x/libglslcompiler.so
        endif
        ifeq ($(SUPPORT_XORG),1)
 	@cp -rf $(GFX_REL_ES8_LIB_SRCPATH)/libsrv_um_dri.so $(GFX_LIBRARY_TARGET_PATH)/gfx_rel_es8.x/libsrv_um.so
@@ -388,6 +421,7 @@ endif
 	@cp -rf $(GFX_DBG_ES8_LIB_SRCPATH)/libGLES_CM_eglimage.so $(GFX_LIBRARY_TARGET_PATH)/gfx_dbg_es8.x/libGLES_CM.so
 	@cp -rf $(GFX_DBG_ES8_LIB_SRCPATH)/libIMGegl_eglimage.so $(GFX_LIBRARY_TARGET_PATH)/gfx_dbg_es8.x/libIMGegl.so
 	@cp -rf $(GFX_DBG_ES8_LIB_SRCPATH)/libEGL_eglimage.so $(GFX_LIBRARY_TARGET_PATH)/gfx_dbg_es8.x/libEGL.so
+	@cp -rf $(GFX_DBG_ES8_LIB_SRCPATH)/libglslcompiler_eglimage.so $(GFX_LIBRARY_TARGET_PATH)/gfx_dbg_es8.x/libglslcompiler.so
        endif
        ifeq ($(SUPPORT_XORG),1)
 	@cp -rf $(GFX_DBG_ES8_LIB_SRCPATH)/libsrv_um_dri.so $(GFX_LIBRARY_TARGET_PATH)/gfx_dbg_es8.x/libsrv_um.so
