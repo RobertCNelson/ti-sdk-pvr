@@ -422,6 +422,7 @@ void OMAPLFBFlip(OMAPLFB_DEVINFO *psDevInfo, OMAPLFB_BUFFER *psBuffer)
 	OMAPLFB_CONSOLE_UNLOCK();
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,1,0)
 #if !defined(PVR_OMAPLFB_DRM_FB) || defined(DEBUG)
 static OMAPLFB_BOOL OMAPLFBValidateDSSUpdateMode(enum omap_dss_update_mode eMode)
 {
@@ -455,6 +456,7 @@ static OMAPLFB_UPDATE_MODE OMAPLFBFromDSSUpdateMode(enum omap_dss_update_mode eM
 	return OMAPLFB_UPDATE_MODE_UNDEFINED;
 }
 #endif
+#endif
 
 static OMAPLFB_BOOL OMAPLFBValidateUpdateMode(OMAPLFB_UPDATE_MODE eMode)
 {
@@ -470,7 +472,7 @@ static OMAPLFB_BOOL OMAPLFBValidateUpdateMode(OMAPLFB_UPDATE_MODE eMode)
 
 	return OMAPLFB_FALSE;
 }
-
+#if 0
 static enum omap_dss_update_mode OMAPLFBToDSSUpdateMode(OMAPLFB_UPDATE_MODE eMode)
 {
 	switch(eMode)
@@ -487,7 +489,7 @@ static enum omap_dss_update_mode OMAPLFBToDSSUpdateMode(OMAPLFB_UPDATE_MODE eMod
 
 	return -1;
 }
-
+#endif
 #if defined(DEBUG)
 static const char *OMAPLFBUpdateModeToString(OMAPLFB_UPDATE_MODE eMode)
 {
