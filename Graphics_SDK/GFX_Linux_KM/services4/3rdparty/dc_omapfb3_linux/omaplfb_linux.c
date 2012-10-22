@@ -281,7 +281,12 @@ OMAPLFB_ERROR OMAPLFBCreateSwapQueue(OMAPLFB_SWAPCHAIN *psSwapChain)
 	 * conditions, preventing the driver from holding on to
 	 * resources longer than it needs to.
 	 */
+#if (LINUX_VERSION_CODE == KERNEL_VERSION(2,6,37))
 	psSwapChain->psWorkQueue = alloc_ordered_workqueue(DEVNAME, WQ_FREEZEABLE | WQ_MEM_RECLAIM);
+#else
+	psSwapChain->psWorkQueue = alloc_ordered_workqueue(DEVNAME, WQ_FREEZABLE | WQ_MEM_RECLAIM);
+#endif
+
 #else
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,36))
 	psSwapChain->psWorkQueue = create_freezable_workqueue(DEVNAME);
