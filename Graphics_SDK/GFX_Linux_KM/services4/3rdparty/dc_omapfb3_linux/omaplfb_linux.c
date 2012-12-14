@@ -281,7 +281,12 @@ OMAPLFB_ERROR OMAPLFBCreateSwapQueue(OMAPLFB_SWAPCHAIN *psSwapChain)
 	 * conditions, preventing the driver from holding on to
 	 * resources longer than it needs to.
 	 */
-	psSwapChain->psWorkQueue = alloc_ordered_workqueue(DEVNAME, WQ_FREEZEABLE | WQ_MEM_RECLAIM);
+#if (LINUX_VERSION_CODE == KERNEL_VERSION(2,6,37))
+        psSwapChain->psWorkQueue = alloc_ordered_workqueue(DEVNAME, WQ_FREEZEABLE | WQ_MEM_RECLAIM);
+#else
+        psSwapChain->psWorkQueue = alloc_ordered_workqueue(DEVNAME, WQ_FREEZABLE | WQ_MEM_RECLAIM);
+#endif
+
 #else
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,36))
 	psSwapChain->psWorkQueue = create_freezable_workqueue(DEVNAME);
@@ -416,7 +421,7 @@ void OMAPLFBFlip(OMAPLFB_DEVINFO *psDevInfo, OMAPLFB_BUFFER *psBuffer)
 
 	OMAPLFB_CONSOLE_UNLOCK();
 }
-
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,1,0)
 #if !defined(PVR_OMAPLFB_DRM_FB) || defined(DEBUG)
 static OMAPLFB_BOOL OMAPLFBValidateDSSUpdateMode(enum omap_dss_update_mode eMode)
 {
@@ -483,7 +488,9 @@ static enum omap_dss_update_mode OMAPLFBToDSSUpdateMode(OMAPLFB_UPDATE_MODE eMod
 	return -1;
 }
 
+#endif
 #if defined(DEBUG)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,1,0)
 static const char *OMAPLFBUpdateModeToString(OMAPLFB_UPDATE_MODE eMode)
 {
 	switch(eMode)
@@ -512,7 +519,7 @@ static const char *OMAPLFBDSSUpdateModeToString(enum omap_dss_update_mode eMode)
 
 	return OMAPLFBUpdateModeToString(OMAPLFBFromDSSUpdateMode(eMode));
 }
-
+#endif
 void OMAPLFBPrintInfo(OMAPLFB_DEVINFO *psDevInfo)
 {
 #if defined(PVR_OMAPLFB_DRM_FB)
@@ -548,7 +555,7 @@ void OMAPLFBPrintInfo(OMAPLFB_DEVINFO *psDevInfo)
 
 	DEBUG_PRINTK((KERN_INFO DRIVER_PREFIX ": Device %u: non-DRM framebuffer\n", psDevInfo->uiFBDevID));
 
-	DEBUG_PRINTK((KERN_INFO DRIVER_PREFIX ": Device %u: %s\n", psDevInfo->uiFBDevID, OMAPLFBUpdateModeToString(eMode)));
+//	DEBUG_PRINTK((KERN_INFO DRIVER_PREFIX ": Device %u: %s\n", psDevInfo->uiFBDevID, OMAPLFBUpdateModeToString(eMode)));
 #endif	/* defined(PVR_OMAPLFB_DRM_FB) */
 }
 #endif	/* defined(DEBUG) */
@@ -754,6 +761,7 @@ OMAPLFB_BOOL OMAPLFBWaitForVSync(OMAPLFB_DEVINFO *psDevInfo)
  */
 OMAPLFB_BOOL OMAPLFBManualSync(OMAPLFB_DEVINFO *psDevInfo)
 {
+#if 0
 #if defined(PVR_OMAPLFB_DRM_FB)
 	struct drm_connector *psConnector;
 
@@ -784,6 +792,8 @@ OMAPLFB_BOOL OMAPLFBManualSync(OMAPLFB_DEVINFO *psDevInfo)
 
 	return OMAPLFB_TRUE;
 #endif	/* defined(PVR_OMAPLFB_DRM_FB) */
+#endif
+	return OMAPLFB_TRUE;
 }
 
 /*

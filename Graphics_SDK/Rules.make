@@ -39,7 +39,7 @@ export EXTRA_LFLAGS
 ######################## NOT MODIFIABLE BY USER ###############################
 
 # Set installation folder
-GRAPHICS_INSTALL_DIR=$(HOME)/Graphics_SDK_4_08_00_01
+GRAPHICS_INSTALL_DIR=$(HOME)/Graphics_SDK_4_08_00_02
 
 # Location of demo executables and install information
 GFX_DEMOS_EXECPATH=$(GRAPHICS_INSTALL_DIR)/gfxsdkdemos
