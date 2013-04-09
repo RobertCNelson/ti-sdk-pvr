@@ -109,7 +109,13 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #endif
 
 #if defined(PVR_OMAPFB3_NEEDS_PLAT_VRFB_H)
+#ifdef FBDEV_PRESENT
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,8,0))
 #include <plat/vrfb.h>
+#else
+#include <video/omapvrfb.h>
+#endif
+#endif
 #else
 #if defined(PVR_OMAPFB3_NEEDS_MACH_VRFB_H)
 #include <mach/vrfb.h>
@@ -120,7 +126,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define	PVR_DEBUG DEBUG
 #undef DEBUG
 #endif
+#ifdef FBDEV_PRESENT
 #include <omapfb/omapfb.h>
+#endif
 #if defined(DEBUG)
 #undef DEBUG
 #endif
@@ -155,7 +163,11 @@ MODULE_SUPPORTED_DEVICE(DEVNAME);
 #if !defined(PVR_OMAPLFB_DRM_FB)
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,34))
 #define OMAP_DSS_DRIVER(drv, dev) struct omap_dss_driver *drv = (dev) != NULL ? (dev)->driver : NULL
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,7,0))
 #define OMAP_DSS_MANAGER(man, dev) struct omap_overlay_manager *man = (dev) != NULL ? (dev)->manager : NULL
+#else
+#define OMAP_DSS_MANAGER(man, dev) struct omap_overlay_manager *man = (dev) != NULL ? (dev)->output->manager : NULL
+#endif
 #define	WAIT_FOR_VSYNC(man)	((man)->wait_for_vsync)
 #else
 #define OMAP_DSS_DRIVER(drv, dev) struct omap_dss_device *drv = (dev)
@@ -760,11 +772,13 @@ OMAPLFB_BOOL OMAPLFBWaitForVSync(OMAPLFB_DEVINFO *psDevInfo)
 #endif
 
 #if FBDEV_PRESENT
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,7,0))
       int r;
 
       void grpx_irq_wait_handler(void *data)
       {
-          complete((struct completion *)data);
+	if (data != NULL)
+        complete((struct completion *)data);
 //      do_gettimeofday(&tv);
   //      curtime=tv.tv_usec;
 //printk("The time in handler is %ld\n",curtime);
@@ -786,6 +800,7 @@ OMAPLFB_BOOL OMAPLFBWaitForVSync(OMAPLFB_DEVINFO *psDevInfo)
           printk (KERN_WARNING DRIVER_PREFIX ": Failed to un-register for vsync call back\n");
           return OMAPLFB_FALSE;
       }
+#endif
 #endif
       return OMAPLFB_TRUE;
 

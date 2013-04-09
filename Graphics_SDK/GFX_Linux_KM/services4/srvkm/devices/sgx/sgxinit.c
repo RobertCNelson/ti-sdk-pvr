@@ -40,7 +40,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */ /**************************************************************************/
 
 #include <stddef.h>
-
 #include "sgxdefs.h"
 #include "sgxmmu.h"
 #include "services_headers.h"
@@ -67,6 +66,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "lists.h"
 #include "srvkm.h"
 #include "ttrace.h"
+
+#if (LINUX_VERSION_CODE > KERNEL_VERSION(3,7,0))
+#include <soc.h>
+#endif
 
 #if defined(PVRSRV_USSE_EDM_STATUS_DEBUG)
 
@@ -572,7 +575,12 @@ PVRSRV_ERROR SGXInitialise(PVRSRV_SGXDEV_INFO	*psDevInfo,
 		return eError;
 	}
 	PDUMPCOMMENTWITHFLAGS(PDUMP_FLAGS_CONTINUOUS, "End of SGX initialisation script part 2\n");
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,5,0))
 	if(!(cpu_is_omap3530() || cpu_is_omap3517()))
+#else
+	if(!(cpu_is_omap3430() || soc_is_am35xx()))
+#endif
         {
                OSWriteHWReg(psDevInfo->pvRegsBaseKM, 0xFF08, 0x80000000);//OCP Bypass mode
         }

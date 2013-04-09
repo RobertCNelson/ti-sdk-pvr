@@ -20,6 +20,8 @@ KERNEL_INSTALL_DIR=$(LINUXKERNEL_INSTALL_DIR)
 # Set Target filesystem path ( ex /home/user/targetfs )
 TARGETFS_INSTALL_DIR=$(DESTDIR)
 
+# Set installation folder
+GRAPHICS_INSTALL_DIR=$(HOME)/Graphics_SDK_4_09_00_01
 ############### All the fields below are OPTIONAL ############################
 ############### BEST SUGGESTED TO LEAVE THE BELOW AS IS ############################
 
@@ -38,8 +40,6 @@ export EXTRA_LFLAGS
 ######################### PRE-DEFINED VARIABLES ###############################
 ######################## NOT MODIFIABLE BY USER ###############################
 
-# Set installation folder
-GRAPHICS_INSTALL_DIR=$(HOME)/Graphics_SDK_4_08_00_02
 
 # Location of demo executables and install information
 GFX_DEMOS_EXECPATH=$(GRAPHICS_INSTALL_DIR)/gfxsdkdemos

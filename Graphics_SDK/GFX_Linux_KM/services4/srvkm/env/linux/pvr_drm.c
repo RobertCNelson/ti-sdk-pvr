@@ -449,6 +449,22 @@ static int PVRSRVDrmProbe(struct platform_device *pDevice);
 static int PVRSRVDrmRemove(struct platform_device *pDevice);
 #endif	/* defined(PVR_DRI_DRM_PLATFORM_DEV) && !defined(SUPPORT_DRI_DRM_EXT) */
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,3,0))
+static const struct file_operations drmdriv_fops = {
+                .owner = THIS_MODULE,
+                .open = drm_open,
+#if defined(PVR_DRI_DRM_USE_POST_CLOSE)
+                .release = drm_release,
+#else
+                .release = PVRSRVDrmRelease,
+#endif
+                PVR_DRM_FOPS_IOCTL = drm_ioctl,
+                .mmap = PVRMMap,
+                .poll = drm_poll,
+                .fasync = drm_fasync,
+};
+#endif
+
 #if defined(SUPPORT_DRI_DRM_PLUGIN)
 static PVRSRV_DRM_PLUGIN sPVRDrmPlugin =
 {
@@ -490,6 +506,7 @@ static struct drm_driver sPVRDrmDriver =
 	.get_reg_ofs = drm_core_get_reg_ofs,
 #endif
 	.ioctls = sPVRDrmIoctls,
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,3,0))
 	.fops =
 	{
 		.owner = THIS_MODULE,
@@ -504,6 +521,9 @@ static struct drm_driver sPVRDrmDriver =
 		.poll = drm_poll,
 		.fasync = drm_fasync,
 	},
+#else
+	.fops = &drmdriv_fops,
+#endif
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,39))
 #if defined(PVR_OLD_STYLE_DRM_PLATFORM_DEV)
 	.platform_driver =

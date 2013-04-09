@@ -174,7 +174,6 @@ PVRSRV_ERROR EnableSGXClocks(SYS_DATA *psSysData)
 #if !defined(NO_HARDWARE)
 	SYS_SPECIFIC_DATA *psSysSpecData = (SYS_SPECIFIC_DATA *) psSysData->pvSysSpecificData;
 	IMG_INT res;
-	long lRate,lNewRate;
 
 	if (atomic_read(&psSysSpecData->sSGXClocksEnabled) != 0)
 	{
@@ -351,7 +350,6 @@ static PVRSRV_ERROR AcquireGPTimer(SYS_SPECIFIC_DATA *psSysSpecData)
 #if defined(PVR_OMAP3_TIMING_PRCM)
 	struct clk *psCLK;
 	IMG_INT res;
-	struct clk *sys_ck;
 	IMG_INT rate;
 #endif
 	PVRSRV_ERROR eError;

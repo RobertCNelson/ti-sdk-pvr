@@ -38,8 +38,11 @@
 #include "sgxinfokm.h"
 #include "syslocal.h"
 
-//#include <linux/platform_device.h>
-//#include <linux/pm_runtime.h>
+#include <linux/platform_device.h>
+
+#if defined(PM_RUNTIME_SUPPORT)
+#include <linux/pm_runtime.h>
+#endif
 
 #define	ONE_MHZ	1000000
 #define	HZ_TO_MHZ(m) ((m) / ONE_MHZ)
@@ -157,16 +160,16 @@ PVRSRV_ERROR EnableSGXClocks(SYS_DATA *psSysData)
 {
 #if !defined(NO_HARDWARE)
 	SYS_SPECIFIC_DATA *psSysSpecData = (SYS_SPECIFIC_DATA *) psSysData->pvSysSpecificData;
+#if !defined(PM_RUNTIME_SUPPORT)
 	IMG_INT res;
 	long lRate,lNewRate;
-
+#endif
 	if (atomic_read(&psSysSpecData->sSGXClocksEnabled) != 0)
 	{
 		return PVRSRV_OK;
 	}
-
+#if !defined(PM_RUNTIME_SUPPORT)
 	PVR_DPF((PVR_DBG_MESSAGE, "EnableSGXClocks: Enabling SGX Clocks"));
-
 	res=clk_enable(psSysSpecData->psSGX_FCK);
 	if (res < 0)
         {
@@ -200,20 +203,19 @@ PVRSRV_ERROR EnableSGXClocks(SYS_DATA *psSysData)
         }
 #endif
 
-
-
+#endif
 #if defined(LDM_PLATFORM) && !defined(PVR_DRI_DRM_NOT_PCI)
+#if defined(PM_RUNTIME_SUPPORT)
 	{
-
-//		int res = pm_runtime_get_sync(&gpsPVRLDMDev->dev);
-//		if (res < 0)
-//		{
-//			PVR_DPF((PVR_DBG_ERROR, "EnableSGXClocks: pm_runtime_get_sync failed (%d)", -res));
-//			return PVRSRV_ERROR_UNABLE_TO_ENABLE_CLOCK;
-//		}
+		int res = pm_runtime_get_sync(&gpsPVRLDMDev->dev);
+		if (res < 0)
+		{
+			PVR_DPF((PVR_DBG_ERROR, "EnableSGXClocks: pm_runtime_get_sync failed (%d)", -res));
+			return PVRSRV_ERROR_UNABLE_TO_ENABLE_CLOCK;
+		}
 	}
 #endif
-//	SysEnableSGXInterrupts(psSysData);
+#endif
 
 
 	atomic_set(&psSysSpecData->sSGXClocksEnabled, 1);
@@ -237,22 +239,22 @@ IMG_VOID DisableSGXClocks(SYS_DATA *psSysData)
 
 	PVR_DPF((PVR_DBG_MESSAGE, "DisableSGXClocks: Disabling SGX Clocks"));
 
+#if !defined(PM_RUNTIME_SUPPORT)
 	clk_disable(psSysSpecData->psSGX_FCK);
 
-	clk_disable(psSysSpecData->psSGX_ICK);
 
-//	SysDisableSGXInterrupts(psSysData);
+#else
 
 #if defined(LDM_PLATFORM) && !defined(PVR_DRI_DRM_NOT_PCI)
 	{
-//		int res = pm_runtime_put_sync(&gpsPVRLDMDev->dev);
-//		if (res < 0)
-//		{
-//			PVR_DPF((PVR_DBG_ERROR, "DisableSGXClocks: pm_runtime_put_sync failed (%d)", -res));
-//		}
+		int res = pm_runtime_put_sync(&gpsPVRLDMDev->dev);
+		if (res < 0)
+		{
+			PVR_DPF((PVR_DBG_ERROR, "DisableSGXClocks: pm_runtime_put_sync failed (%d)", -res));
+		}
 	}
 #endif
-
+#endif
 	atomic_set(&psSysSpecData->sSGXClocksEnabled, 0);
 
 #else
@@ -485,7 +487,9 @@ static void ReleaseGPTimer(SYS_SPECIFIC_DATA *psSysSpecData)
 PVRSRV_ERROR EnableSystemClocks(SYS_DATA *psSysData)
 {
 	SYS_SPECIFIC_DATA *psSysSpecData = (SYS_SPECIFIC_DATA *) psSysData->pvSysSpecificData;
+#if !defined(PM_RUNTIME_SUPPORT)
 	struct clk *psCLK;
+#endif
 	PVR_TRACE(("EnableSystemClocks: Enabling System Clocks"));
 
 	if (!psSysSpecData->bSysClocksOneTimeInit)
@@ -493,8 +497,8 @@ PVRSRV_ERROR EnableSystemClocks(SYS_DATA *psSysData)
 		mutex_init(&psSysSpecData->sPowerLock);
 
 		atomic_set(&psSysSpecData->sSGXClocksEnabled, 0);
-
-
+		psSysSpecData->bSysClocksOneTimeInit = IMG_TRUE;
+#if !defined(PM_RUNTIME_SUPPORT)
 		psCLK = clk_get(NULL, "sgx_ck");
                 if (IS_ERR(psCLK))
                 {
@@ -502,7 +506,7 @@ PVRSRV_ERROR EnableSystemClocks(SYS_DATA *psSysData)
                         return PVRSRV_ERROR_UNABLE_TO_GET_CLOCK;
                 }
                 psSysSpecData->psSGX_FCK = psCLK;
-
+#endif
 	}
 
 	return AcquireGPTimer(psSysSpecData);
@@ -521,16 +525,27 @@ IMG_VOID DisableSystemClocks(SYS_DATA *psSysData)
 
 PVRSRV_ERROR SysPMRuntimeRegister(void)
 {
+#if defined(PM_RUNTIME_SUPPORT)
 #if defined(LDM_PLATFORM) && !defined(PVR_DRI_DRM_NOT_PCI)
-//	pm_runtime_enable(&gpsPVRLDMDev->dev);
+	struct clk *psCLK;
+	psCLK = clk_get(&gpsPVRLDMDev->dev, "sgx_ck");
+	if (IS_ERR(psCLK))
+                {
+                        PVR_DPF((PVR_DBG_ERROR, "EnableSsystemClocks: Couldn't get SGX Functional Clock"));
+                        return PVRSRV_ERROR_UNABLE_TO_GET_CLOCK;
+                }
+	pm_runtime_enable(&gpsPVRLDMDev->dev);
+#endif
 #endif
 	return PVRSRV_OK;
 }
 
 PVRSRV_ERROR SysPMRuntimeUnregister(void)
 {
+#if defined(PM_RUNTIME_SUPPORT)
 #if defined(LDM_PLATFORM) && !defined(PVR_DRI_DRM_NOT_PCI)
-//	pm_runtime_disable(&gpsPVRLDMDev->dev);
+	pm_runtime_disable(&gpsPVRLDMDev->dev);
+#endif
 #endif
 	return PVRSRV_OK;
 }

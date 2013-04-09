@@ -90,6 +90,14 @@ SUPPORT_DRI_DRM_NO_LIBDRM = 1
 endif
 endif
 
+ifeq ($(TI_PLATFORM),ti335x)
+ifneq ($(SUPPORT_XORG),1)
+ifeq ($(PM_RUNTIME),1)
+PM_RUNTIME_SUPPORT = 1
+endif
+endif
+endif
+
 
 # Only enable active power management if passive power management is
 # enabled, as indicated by LDM_PLATFORM being set to 1.  On OMAP,

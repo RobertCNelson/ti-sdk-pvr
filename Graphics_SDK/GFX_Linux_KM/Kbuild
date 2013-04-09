@@ -45,6 +45,13 @@ ifneq ($(FBDEV),no)
 EXTRA_CFLAGS += -DFBDEV_PRESENT
 endif
 
+ifeq ($(TI_PLATFORM),ti335x)
+ifneq ($(SUPPORT_XORG),1)
+ifeq ($(PM_RUNTIME),1)
+EXTRA_CFLAGS += -DPM_RUNTIME_SUPPORT
+endif
+endif
+endif
 
 ifeq ($(TI_PLATFORM),ti335x)
 DRIFILES = services4/srvkm/env/linux/pvr_drm.c services4/3rdparty/dc_ti335x_linux/omaplfb_linux.c services4/3rdparty/dc_ti335x_linux/omaplfb_displayclass.c
@@ -66,7 +73,7 @@ EXTRA_CFLAGS += -I$(src)/services4/srvkm/env/linux
 EXTRA_CFLAGS += -I$(src)/services4/system/include
 EXTRA_CFLAGS += -I$(src)/services4/system/$(TI_PLATFORM)
 EXTRA_CFLAGS += -I$(src)/services4/srvkm/bridged/sgx
-
+EXTRA_CFLAGS += -I$(KERNELDIR)/arch/arm/mach-omap2
 
 ifeq ($(SUPPORT_XORG),1)
 EXTRA_CFLAGS += -I$(KERNELDIR)/include/drm

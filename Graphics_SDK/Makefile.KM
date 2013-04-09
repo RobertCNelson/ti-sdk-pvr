@@ -5,6 +5,7 @@ OMAPES=INVALIDVAL
 FBDEV=yes
 SUPPORT_XORG=0
 EGLIMAGE=0
+PM_RUNTIME=0
 
 ifeq ($(TI_DEVICE),am335x-evm)
 OMAPES=8.x
@@ -59,6 +60,7 @@ buildkernel:
 	@echo "building the sgx kernel modules..."
 	@export FBDEV
 	@export SUPPORT_XORG
+	@export PM_RUNTIME
 
 ifeq ($(SUPPORT_XORG),1)
 	@cp $(KERNEL_INSTALL_DIR)/drivers/gpu/drm/*.c `pwd`/GFX_Linux_KM/services4/3rdparty/linux_drm/
@@ -439,8 +441,9 @@ endif
 
 help_km:
 	@echo ""
-	@echo "Usage (for build): make BUILD={debug | release} OMAPES={ 3.x | 5.x | 6.x | 8.x} FBDEV={yes | no} SUPPORT_XORG={1 | 0}"
-	@echo "Specifying OMAPES is mandatory. BUILD=release by default FBDEV=YES and SUPPORT_XORG=0 by default"
+	@echo "Usage (for build): make BUILD={debug | release} OMAPES={ 3.x | 5.x | 6.x | 8.x} FBDEV={yes | no} SUPPORT_XORG={1 | 0} PM_RUNTIME={1 |0)"
+	@echo "PM_RUNTIME option valid/available for OMAPES=8.x(AM335x) only"
+	@echo "Specifying OMAPES is mandatory. BUILD=release by default FBDEV=YES,SUPPORT_XORG=0 and PM_RUNTIME=0 by default"
 	@echo "Usage (for install): make BUILD=(debug | release} OMAPES={ 3.x | 5.x| 6.x | 8.x} install"
 	@echo "See online Graphics Getting Started Guide for further details."
 	@echo ""
