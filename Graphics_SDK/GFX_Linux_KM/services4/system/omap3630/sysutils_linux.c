@@ -167,10 +167,28 @@ PVRSRV_ERROR EnableSGXClocks(SYS_DATA *psSysData)
 
 	PVR_DPF((PVR_DBG_MESSAGE, "EnableSGXClocks: Enabling SGX Clocks"));
 
+	res=clk_prepare(psSysSpecData->psSGX_FCK);
+	if (res < 0)
+        {
+                PVR_DPF((PVR_DBG_ERROR, "EnableSGXClocks: Couldn't prepare SGX functional clock (%d)", res));
+                return PVRSRV_ERROR_UNABLE_TO_ENABLE_CLOCK;
+        }
+
 	res=clk_enable(psSysSpecData->psSGX_FCK);
 	if (res < 0)
         {
                 PVR_DPF((PVR_DBG_ERROR, "EnableSGXClocks: Couldn't enable SGX functional clock (%d)", res));
+		clk_unprepare(psSysSpecData->psSGX_FCK);
+                return PVRSRV_ERROR_UNABLE_TO_ENABLE_CLOCK;
+        }
+
+	res=clk_prepare(psSysSpecData->psSGX_ICK);
+        if (res < 0)
+        {
+                PVR_DPF((PVR_DBG_ERROR, "EnableSGXClocks: Couldn't prepare SGX interface clock (%d)", res));
+
+                clk_disable(psSysSpecData->psSGX_FCK);
+		clk_unprepare(psSysSpecData->psSGX_FCK);
                 return PVRSRV_ERROR_UNABLE_TO_ENABLE_CLOCK;
         }
 
@@ -179,7 +197,9 @@ PVRSRV_ERROR EnableSGXClocks(SYS_DATA *psSysData)
         {
                 PVR_DPF((PVR_DBG_ERROR, "EnableSGXClocks: Couldn't enable SGX interface clock (%d)", res));
 
+		clk_unprepare(psSysSpecData->psSGX_ICK);
                 clk_disable(psSysSpecData->psSGX_FCK);
+		clk_unprepare(psSysSpecData->psSGX_FCK);
                 return PVRSRV_ERROR_UNABLE_TO_ENABLE_CLOCK;
         }
 
@@ -247,8 +267,10 @@ IMG_VOID DisableSGXClocks(SYS_DATA *psSysData)
 	PVR_DPF((PVR_DBG_MESSAGE, "DisableSGXClocks: Disabling SGX Clocks"));
 
 	clk_disable(psSysSpecData->psSGX_FCK);
+	clk_unprepare(psSysSpecData->psSGX_FCK);
 
 	clk_disable(psSysSpecData->psSGX_ICK);
+	clk_unprepare(psSysSpecData->psSGX_ICK);
 
 //	SysDisableSGXInterrupts(psSysData);
 
