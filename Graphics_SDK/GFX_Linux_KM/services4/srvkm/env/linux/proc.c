@@ -91,6 +91,21 @@ static struct file_operations pvr_proc_operations =
 	.release	= seq_release,
 };
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0))
+
+static ssize_t pvr_proc_read(struct file *file, char __user *buffer, size_t count, loff_t *ppos);
+
+static struct file_operations pvr_read_proc_operations =
+{
+	.open		= pvr_proc_open,
+	.read		= pvr_proc_read,
+	.write		= pvr_proc_write,
+	.llseek		= seq_lseek,
+	.release	= seq_release,
+};
+
+#endif
+
 static struct seq_operations pvr_proc_seq_operations =
 {
 	.start =	pvr_proc_seq_start,
@@ -249,10 +264,15 @@ static IMG_INT pvr_proc_open(struct inode *inode,struct file *file)
 	IMG_INT ret = seq_open(file, &pvr_proc_seq_operations);
 
 	struct seq_file *seq = (struct seq_file*)file->private_data;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0))
+
 	struct proc_dir_entry* pvr_proc_entry = PDE(inode);
 
 	/* Add pointer to handlers to seq_file structure */
 	seq->private = pvr_proc_entry->data;
+#else
+	// FIXME: how do we handle private data attached to a proc_dir_entry if there is no PDE() macro?
+#endif
 	return ret;
 }
 
@@ -274,12 +294,21 @@ static ssize_t pvr_proc_write(struct file *file, const char __user *buffer,
 	struct proc_dir_entry * dp;
 
 	PVR_UNREFERENCED_PARAMETER(ppos);
-	dp = PDE(inode);
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0))
+	dp = PDE(inode);
 	if (!dp->write_proc)
 		return -EIO;
 
 	return dp->write_proc(file, buffer, count, dp->data);
+#else
+	// there is no PDE macro any more
+	// dp no longer has a write_proc
+	// so we store a similar function in the dp->data
+	/* FIXME: - we need another level of indirection to PVR_PROC_SEQ_HANDLERS */
+
+	return -EIO;
+#endif
 }
 
 
@@ -450,8 +479,8 @@ static struct proc_dir_entry* CreateProcEntryInDirSeq(
 		mode |= S_IWUSR;
     }
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0))
 	file=create_proc_entry(name, mode, pdir);
-
     if (file)
     {
 		PVR_PROC_SEQ_HANDLERS *seq_handlers;
@@ -478,6 +507,29 @@ static struct proc_dir_entry* CreateProcEntryInDirSeq(
 		}
     }
 
+#else
+
+	/* Pass the handlers */
+	data =  kmalloc(sizeof(PVR_PROC_SEQ_HANDLERS), GFP_KERNEL);
+	if(data)
+		{
+		PVR_PROC_SEQ_HANDLERS *seq_handlers;
+		seq_handlers = (PVR_PROC_SEQ_HANDLERS*) data;
+		seq_handlers->next = next_handler;
+		seq_handlers->show = show_handler;
+		seq_handlers->off2element = off2element_handler;
+		seq_handlers->startstop = startstop_handler;
+		seq_handlers->data = data;
+
+		seq_handlers->write_proc = whandler;
+
+		file=proc_create_data(name, mode, pdir, &pvr_proc_operations, data);
+
+		if (file)
+			return file;
+		kfree (data);
+		}
+#endif
     PVR_DPF((PVR_DBG_ERROR, "CreateProcEntryInDirSeq: cannot make proc entry /proc/%s/%s: no memory", PVRProcDirRoot, name));
     return NULL;
 }
@@ -695,13 +747,17 @@ IMG_VOID RemoveProcEntrySeq( struct proc_dir_entry* proc_entry )
 {
     if (dir)
     {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0))
 		void* data = proc_entry->data ;
         PVR_DPF((PVR_DBG_MESSAGE, "Removing /proc/%s/%s", PVRProcDirRoot, proc_entry->name));
 
         remove_proc_entry(proc_entry->name, dir);
 		if( data)
 			kfree( data );
-
+#else
+	/* how do we get access to the private data? */
+	/* how to we replace remove_proc_entry? */
+#endif
     }
 }
 
@@ -739,12 +795,17 @@ IMG_VOID RemovePerProcessProcEntrySeq(struct proc_dir_entry* proc_entry)
 
     if (psPerProc->psProcDir)
     {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0))
 		void* data = proc_entry->data ;
         PVR_DPF((PVR_DBG_MESSAGE, "Removing proc entry %s from %s", proc_entry->name, psPerProc->psProcDir->name));
 
         remove_proc_entry(proc_entry->name, psPerProc->psProcDir);
 		if(data)
 			kfree( data );
+#else
+	// FIXME
+	/* how to we replace remove_proc_entry? */
+#endif
     }
 }
 
@@ -784,6 +845,8 @@ IMG_VOID RemovePerProcessProcEntrySeq(struct proc_dir_entry* proc_entry)
  @Return      : length of string written to page
 
 *****************************************************************************/
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0))
+
 static IMG_INT pvr_read_proc(IMG_CHAR *page, IMG_CHAR **start, off_t off,
                          IMG_INT count, IMG_INT *eof, IMG_VOID *data)
 {
@@ -809,6 +872,28 @@ static IMG_INT pvr_read_proc(IMG_CHAR *page, IMG_CHAR **start, off_t off,
     return len;
 }
 
+#else
+
+static ssize_t pvr_proc_read(struct file *file, char __user *buffer,
+							  size_t count, loff_t *ppos)
+{
+	struct inode *inode = file->f_path.dentry->d_inode;
+	struct proc_dir_entry * dp;
+
+	PVR_UNREFERENCED_PARAMETER(ppos);
+
+	/* FIXME: - we need another level of indirection to PVR_PROC_SEQ_HANDLERS
+	 dp = PDE(inode);
+
+	 if (!dp->read_proc)
+		return -EIO;
+
+	return dp->read_proc(file, buffer, count, dp->data);
+	 */
+	return -EIO;
+}
+
+#endif
 
 /*!
 ******************************************************************************
@@ -855,6 +940,7 @@ static IMG_INT CreateProcEntryInDir(struct proc_dir_entry *pdir, const IMG_CHAR 
 	mode |= S_IWUSR;
     }
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0))
     file = create_proc_entry(name, mode, pdir);
 
     if (file)
@@ -871,6 +957,26 @@ static IMG_INT CreateProcEntryInDir(struct proc_dir_entry *pdir, const IMG_CHAR 
         return 0;
     }
 
+#else
+	/* Pass the handlers */
+	data =  kmalloc(sizeof(PVR_PROC_SEQ_HANDLERS), GFP_KERNEL);
+	if (data)
+		{
+		PVR_PROC_SEQ_HANDLERS *handlers;
+		handlers = (PVR_PROC_SEQ_HANDLERS*) data;
+		handlers->data = data;
+
+		handlers->read_proc = rhandler;
+		handlers->write_proc = whandler;
+
+		file = proc_create_data(name, mode, pdir, &pvr_read_proc_operations, data);
+
+		if (file)
+			return 0;
+		kfree (data);
+		}
+
+#endif
     PVR_DPF((PVR_DBG_ERROR, "CreateProcEntry: cannot create proc entry %s in %s", name, pdir->name));
 
     return -ENOMEM;
@@ -1006,9 +1112,14 @@ IMG_INT CreateProcReadEntry(const IMG_CHAR * name, pvr_read_proc_t handler)
         return -ENOMEM;
     }
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0))
 	/* PRQA S 0307 1 */ /* ignore warning about casting to different pointer type */
     file = create_proc_read_entry (name, S_IFREG | S_IRUGO, dir, pvr_read_proc, (IMG_VOID *)handler);
+#else
+	// use file_ops pointing to pvr_read_proc
+	file = proc_create_data (name, S_IFREG | S_IRUGO, dir, &pvr_read_proc_operations, (IMG_VOID *)handler);
 
+#endif
     if (file)
     {
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,30))
@@ -1112,7 +1223,11 @@ IMG_VOID RemoveProcEntry(const IMG_CHAR * name)
 {
     if (dir)
     {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0))
         remove_proc_entry(name, dir);
+#else
+	// FIXME
+#endif
         PVR_DPF((PVR_DBG_MESSAGE, "Removing /proc/%s/%s", PVRProcDirRoot, name));
     }
 }
@@ -1150,8 +1265,11 @@ IMG_VOID RemovePerProcessProcEntry(const IMG_CHAR *name)
 
     if (psPerProc->psProcDir)
     {
-        remove_proc_entry(name, psPerProc->psProcDir);
-
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0))
+       remove_proc_entry(name, psPerProc->psProcDir);
+#else
+	// FIXME
+#endif
         PVR_DPF((PVR_DBG_MESSAGE, "Removing proc entry %s from %s", name, psPerProc->psProcDir->name));
     }
 }
@@ -1175,13 +1293,17 @@ IMG_VOID RemovePerProcessProcDir(PVRSRV_ENV_PER_PROCESS_DATA *psPerProc)
 {
     if (psPerProc->psProcDir)
     {
-        while (psPerProc->psProcDir->subdir)
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0))
+       while (psPerProc->psProcDir->subdir)
         {
             PVR_DPF((PVR_DBG_WARNING, "Belatedly removing /proc/%s/%s/%s", PVRProcDirRoot, psPerProc->psProcDir->name, psPerProc->psProcDir->subdir->name));
 
             RemoveProcEntry(psPerProc->psProcDir->subdir->name);
         }
         RemoveProcEntry(psPerProc->psProcDir->name);
+#else
+	// FIXME: how to walk a subdirectory?
+#endif
     }
 }
 
@@ -1213,14 +1335,18 @@ IMG_VOID RemoveProcEntries(IMG_VOID)
 	RemoveProcEntrySeq(g_pProcVersion);
 	RemoveProcEntrySeq(g_pProcSysNodes);
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0))
 	while (dir->subdir)
 	{
 		PVR_DPF((PVR_DBG_WARNING, "Belatedly removing /proc/%s/%s", PVRProcDirRoot, dir->subdir->name));
 
 		RemoveProcEntry(dir->subdir->name);
 	}
-
 	remove_proc_entry(PVRProcDirRoot, NULL);
+#else
+	// FIXME: how to walk a subdirectory?
+	// proc_remove(??);
+#endif
 }
 
 /*****************************************************************************

@@ -809,7 +809,7 @@ OMAPLFB_BOOL OMAPLFBWaitForVSync(OMAPLFB_DEVINFO *psDevInfo)
 
 	return OMAPLFB_TRUE;
 #else	/* defined(PVR_OMAPLFB_DRM_FB) */
-#if FBDEV_PRESENT
+#if defined(FBDEV_PRESENT)
 	struct omap_dss_device *psDSSDev = fb2display(psDevInfo->psLINFBInfo);
 	OMAP_DSS_MANAGER(psDSSMan, psDSSDev);
 
