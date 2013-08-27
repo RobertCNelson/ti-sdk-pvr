@@ -21,7 +21,7 @@ KERNEL_INSTALL_DIR=$(LINUXKERNEL_INSTALL_DIR)
 TARGETFS_INSTALL_DIR=$(DESTDIR)
 
 # Set installation folder
-GRAPHICS_INSTALL_DIR=$(HOME)/Graphics_SDK_4_09_00_01
+GRAPHICS_INSTALL_DIR=$(HOME)/Graphics_SDK_4_10_00_01
 ############### All the fields below are OPTIONAL ############################
 ############### BEST SUGGESTED TO LEAVE THE BELOW AS IS ############################
 

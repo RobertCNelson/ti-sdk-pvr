@@ -39,7 +39,34 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ### ###########################################################################
 
-PVR_SYSTEM		:= omap4
+# If a product wasn't specified, we're an OMAP4430 blaze.
+#
+TARGET_PRODUCT ?= blaze
+
+# Customize this build as per the TARGET_PRODUCT setting
+#
+ifneq ($(filter blaze blaze_tablet panda,$(TARGET_PRODUCT)),)
+SGXCORE					:= 540
+SGX_CORE_REV				:= 120
+XORG_TOOLCHAIN ?= tarballs-omap4-ubuntu-10.10-cross
+endif
+ifneq ($(filter blaze.4470 blaze_tablet.4470,$(TARGET_PRODUCT)),)
+SGXCORE					:= 544
+SGX_CORE_REV				:= 112
+endif
+ifneq ($(filter omap5sevm panda5,$(TARGET_PRODUCT)),)
+SGXCORE					:= 544
+SGX_CORE_REV				:= 105
+SGX_FEATURE_MP				:= 1
+SGX_FEATURE_SYSTEM_CACHE		:= 1
+SGX_FEATURE_MP_CORE_COUNT		:= 2
+PVR_OMAPLFB_DRM_FB			:= 0
+
+# FIXME: Re-enable this ASAP
+SUPPORT_ACTIVE_POWER_MANAGEMENT 	:= 0
+endif
+
+PVR_SYSTEM		:= omap
 
 KERNEL_COMPONENTS := srvkm bufferclass_example
 
@@ -64,9 +91,25 @@ DISPLAY_CONTROLLER_COMPONENT += linux_framebuffer
 DISPLAY_CONTROLLER := pvrlfb
 endif
 
-OPTIM := -Os
-
 SYS_CFLAGS := -march=armv7-a
+
+# Ubuntu ARM compilers need an explicit -marm option to build native ARM code,
+# rather than ARM thumb code.
+UBUNTU_TOOLCHAIN :=
+ifeq ($(CROSS_COMPILE),)
+UBUNTU_TOOLCHAIN = 1
+endif
+ifeq ($(CROSS_COMPILE),arm-linux-gnueabi-)
+UBUNTU_TOOLCHAIN = 1
+endif
+ifeq ($(CROSS_COMPILE),arm-linux-gnueabihf-)
+UBUNTU_TOOLCHAIN = 1
+endif
+
+ifneq ($(UBUNTU_TOOLCHAIN),)
+SYS_CFLAGS += -marm
+else
+OPTIM := -Os
 
 ifneq ($(CROSS_COMPILE),)
 SYS_CFLAGS += -mtls-dialect=arm
@@ -77,11 +120,9 @@ SUPPORT_OMAP4430_NEON ?= 1
 ifeq ($(SUPPORT_OMAP4430_NEON),1)
 SYS_CFLAGS += -ftree-vectorize -mfpu=neon -mfloat-abi=softfp
 endif
+endif	# UBUNTU_TOOLCHAIN
 
 LIBGCC := $(shell $(CROSS_COMPILE)gcc -print-libgcc-file-name)
-
-SGXCORE := 540
-SGX_CORE_REV := 120
 
 SGX_DYNAMIC_TIMING_INFO := 1
 SYS_CUSTOM_POWERLOCK_WRAP := 1
@@ -122,9 +163,10 @@ endif
 
 include ../common/xorg_test.mk
 ifeq ($(want_xorg),1)
-
 SUPPORT_DRI_DRM := 1
+endif
 
+ifeq ($(SUPPORT_DRI_DRM),1)
 ifeq ($(call kernel-version-at-least,2,6,35),true)
 PVR_DRI_DRM_PLATFORM_DEV := 1
 PVR_DRI_DRM_STATIC_BUS_ID := 1
@@ -136,25 +178,28 @@ ifeq ($(call kernel-version-at-least,2,6,36),true)
 PVR_DRI_DRM_DEV_BUS_ID := "\"platform:pvrsrvkm"\"
 else
 PVR_DRI_DRM_DEV_BUS_ID := "\"platform:pvrsrvkm:00"\"
-endif
+endif	# kernel-version-at-least,2,6,36
+endif	# kernel-version-at-least,2,6,35,7
+else	# kernel-version-at-least,2,6,35
+PVR_DRI_DRM_NOT_PCI := 1
+endif	# kernel-version-at-least,2,6,35
+endif	# SUPPORT_DRI_DRM
+
+ifeq ($(want_xorg),1)
+ifeq ($(call kernel-version-at-least,2,6,35,7),true)
 # A client DRI authorisation failure, whilst switched away from the X Server
 # VT, prevents all other attempts at DRI authorisation, even after
 # switching back to the X server VT, so don't perform a DRM drop master
 # call.
 PVR_XORG_DONT_DROP_MASTER_IN_LEAVE_VT := 1
 endif
-else
-PVR_DRI_DRM_NOT_PCI := 1
-endif
-
-XORG_TOOLCHAIN ?= tarballs-omap4-ubuntu-10.10-cross
 XORG_PVR_CONF := omap4
 XORG_PVR_VIDEO := omap4
 
 OPK_FALLBACK := libpvrPVR2D_DRIWSEGL.so
 
 ifneq ($(OMAP_NON_FLIP_DISPLAY),1)
-XORG_PVR_VIDEO ?= $(PVR_SYSTEM)
+XORG_PVR_VIDEO ?= omap4
 PVR_DISPLAY_CONTROLLER_DRM_IOCTL := 1
 endif
 
@@ -173,6 +218,8 @@ EXTRA_PVRSRVKM_COMPONENTS += $(DISPLAY_CONTROLLER_COMPONENT)
 else
 KERNEL_COMPONENTS += $(DISPLAY_CONTROLLER_COMPONENT)
 endif
+
+FORCE_ENABLE_GROW_SHRINK ?= 1
 
 include ../config/core.mk
 include ../common/xorg.mk

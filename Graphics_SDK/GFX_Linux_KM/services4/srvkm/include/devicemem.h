@@ -1,7 +1,6 @@
 /*************************************************************************/ /*!
-@Title          System Description Header
+@Title          KM internal device memory functions
 @Copyright      Copyright (c) Imagination Technologies Ltd. All Rights Reserved
-@Description    This header provides system-specific declarations and macros
 @License        Dual MIT/GPLv2
 
 The contents of this file are subject to the MIT license as set out below.
@@ -40,25 +39,14 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */ /**************************************************************************/
 
-#if !defined(__SYSINFO_H__)
-#define __SYSINFO_H__
+#include "img_defs.h"
+#include "img_types.h"
+#include "servicesext.h"
 
-/*!< System specific poll/timeout details */
-#if defined(PVR_LINUX_USING_WORKQUEUES)
-/*
- * The workqueue based 3rd party display driver may be blocked for up
- * to 500ms waiting for a vsync when the screen goes blank, so we
- * need to wait longer for the hardware if a flush of the swap chain is
- * required.
- */
-#define MAX_HW_TIME_US				(1000000)
-#define WAIT_TRY_COUNT				(20000)
-#else
-#define MAX_HW_TIME_US				(500000)
-#define WAIT_TRY_COUNT				(10000)
-#endif
+#ifndef __DEVICEMEM_H__
+#define __DEVICEMEM_H__
 
+PVRSRV_ERROR IMG_CALLCONV PVRSRVInitDeviceMem(IMG_VOID);
+IMG_VOID IMG_CALLCONV PVRSRVDeInitDeviceMem(IMG_VOID);
 
-#define SYS_DEVICE_COUNT 15 /* SGX, DISPLAYCLASS (external), BUFFERCLASS (external) */
-
-#endif	/* __SYSINFO_H__ */
+#endif /* __DEVICEMEM_H__ */

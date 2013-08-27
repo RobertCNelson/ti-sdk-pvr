@@ -116,6 +116,10 @@ define host-cc-option
 $(call cc-check,$(patsubst @%,%,$(HOST_CC)),$(OUT),$(1))
 endef
 
+define host-cxx-option
+$(call cc-check,$(patsubst @%,%,$(HOST_CXX)),$(OUT),$(1))
+endef
+
 define kernel-cc-option
 $(call cc-check,$(KERNEL_CROSS_COMPILE)gcc,$(OUT),$(1))
 endef

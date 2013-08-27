@@ -56,6 +56,7 @@
 #
 define KernelConfigMake
 $$(shell echo "override $(1) := $(2)" >>$(CONFIG_KERNEL_MK).new)
+$(if $(filter config,$(D)),$(info KernelConfigMake $(1) := $(2) 	# $(if $($(1)),$(origin $(1)),default)))
 endef
 
 # Write out a GNU make option for both user & kernel
@@ -88,6 +89,7 @@ endef
 #
 define KernelConfigC
 $$(shell echo "#define $(1) $(2)" >>$(CONFIG_KERNEL_H).new)
+$(if $(filter config,$(D)),$(info KernelConfigC    #define $(1) $(2) 	/* $(if $($(1)),$(origin $(1)),default) */),)
 endef
 
 # Write out an option for both user & kernel
@@ -184,6 +186,14 @@ CONFIG_H			:= $(OUT)/config.h
 CONFIG_KERNEL_MK	:= $(OUT)/config_kernel.mk
 CONFIG_KERNEL_H		:= $(OUT)/config_kernel.h
 
+# Convert commas to spaces in $(D). This is so you can say "make
+# D=config-changes,freeze-config" and have $(filter config-changes,$(D))
+# still work.
+comma := ,
+empty :=
+space := $(empty) $(empty)
+override D := $(subst $(comma),$(space),$(D))
+
 # Create the OUT directory and delete any previous intermediary files
 #
 $(shell mkdir -p $(OUT))
@@ -208,6 +218,12 @@ endif
 # For a clobber-only build, we shouldn't regenerate any config files, or
 # require things like SGXCORE to be set
 ifneq ($(INTERNAL_CLOBBER_ONLY),true)
+
+# These are defined by the core build system, but we might need them
+# earlier to feature-check the compilers
+#
+_CC		:= $(CROSS_COMPILE)$(if $(filter default,$(origin CC)),gcc,$(CC))
+HOST_CC	?= gcc
 
 -include ../config/user-defs.mk
 
@@ -271,21 +287,10 @@ override SUPPORT_HW_RECOVERY := 0
 override SUPPORT_ACTIVE_POWER_MANAGEMENT := 0
 endif
 
-# We're bumping against USSE limits on older cores because the ukernel
-# is too large when building both SGX_DISABLE_VISTEST_SUPPORT=0 and
-# PVRSRV_USSE_EDM_STATUS_DEBUG=1.
-#
-# Automatically disable vistest support if debugging the ukernel to
-# prevent build failures.
-#
-ifneq ($(filter 520 530 531 535 540,$(SGXCORE)),)
-ifneq ($(SGX_DISABLE_VISTEST_SUPPORT),1)
-SGX_DISABLE_VISTEST_SUPPORT ?= not-overridden
-ifeq ($(SGX_DISABLE_VISTEST_SUPPORT),not-overridden)
-$(warning Setting SGX_DISABLE_VISTEST_SUPPORT=1 because PVRSRV_USSE_EDM_STATUS_DEBUG=1)
-SGX_DISABLE_VISTEST_SUPPORT := 1
-endif
-endif
+ifeq ($(SGX_FEATURE_36BIT_MMU),1)
+override IMG_ADDRSPACE_PHYSADDR_BITS := 64
+else
+override IMG_ADDRSPACE_PHYSADDR_BITS := 32
 endif
 
 ifeq ($(SGXCORE),535)
@@ -343,12 +348,12 @@ $$(warning *** Setting $(1) via $$(origin $(1)) is deprecated)
 $$(error If you are trying to disable a component, use e.g. EXCLUDED_APIS="opengles1 opengl")
 endif
 endef
-$(foreach _o,SYS_CFLAGS SYS_CXXFLAGS SYS_EXE_LDFLAGS SYS_LIB_LDFLAGS SUPPORT_EWS SUPPORT_OPENGLES1 SUPPORT_OPENGLES2 SUPPORT_OPENVG SUPPORT_OPENCL SUPPORT_OPENGL SUPPORT_UNITTESTS SUPPORT_XORG,$(eval $(call sanity-check-support-option-origin,$(_o))))
+$(foreach _o,SYS_CFLAGS SYS_CXXFLAGS SYS_EXE_LDFLAGS SYS_LIB_LDFLAGS SYS_EXE_LDFLAGS_CXX SYS_LIB_LDFLAGS_CXX SUPPORT_EWS SUPPORT_OPENGLES1 SUPPORT_OPENGLES2 SUPPORT_OPENCL SUPPORT_RSCOMPUTE SUPPORT_OPENGL SUPPORT_UNITTESTS SUPPORT_XORG,$(eval $(call sanity-check-support-option-origin,$(_o))))
 
 # Check for words in EXCLUDED_APIS that aren't understood by the
 # common/apis/*.mk files. This should be kept in sync with all the tests on
 # EXCLUDED_APIS in those files
-_excludable_apis := opencl opengl opengles1 opengles2 openvg ews unittests xorg xorg_unittests scripts
+_excludable_apis := rscompute opencl opengl opengles1 opengles2 openvg ews unittests xorg xorg_unittests scripts
 _unrecognised := $(strip $(filter-out $(_excludable_apis),$(EXCLUDED_APIS)))
 ifneq ($(_unrecognised),)
 $(warning *** Unrecognised entries in EXCLUDED_APIS: $(_unrecognised))
@@ -378,7 +383,12 @@ ifneq ($(filter pvr2d,$(COMPONENTS)),)
 COMPONENTS += null_pvr2d_remote
 endif
 COMPONENTS += pvrvncsrv
+COMPONENTS += pvrvncinput
 endif
+
+$(if $(filter config,$(D)),$(info Build configuration:))
+
+################################# CONFIG ####################################
 
 # If KERNELDIR is set, write it out to the config.mk, with
 # KERNEL_COMPONENTS and KERNEL_ID
@@ -400,16 +410,51 @@ KERNEL_CROSS_COMPILE ?= $(CROSS_COMPILE)
 $(eval $(call TunableBothConfigMake,KERNEL_CROSS_COMPILE,))
 endif
 
-# Check the KERNELDIR has a kernel built and also check that it is
-# not 64-bit, which we do not support.
+# Check the KERNELDIR has a kernel built.
 VMLINUX := $(strip $(wildcard $(KERNELDIR)/vmlinux))
+LINUXCFG := $(strip $(wildcard $(KERNELDIR)/.config))
+
 ifneq ($(VMLINUX),)
-VMLINUX_IS_64BIT := $(shell file $(VMLINUX) | grep -q 64-bit || echo false)
+ifneq ($(shell file $(KERNELDIR)/vmlinux | grep 64-bit >/dev/null && echo 1),$(shell $(_CC) -dM -E - </dev/null | grep __x86_64__ >/dev/null && echo 1))
+$(error Attempting to build 64-bit DDK against 32-bit kernel, or 32-bit DDK against 64-bit kernel. This is not allowed.)
+endif
+VMLINUX_IS_64BIT := $(shell file $(VMLINUX) | grep 64-bit >/dev/null || echo false)
+VMLINUX_HAS_PAE36 := $(shell cat $(LINUXCFG) | grep CONFIG_X86_PAE=y >/dev/null || echo false)
+VMLINUX_HAS_PAE40 := $(shell cat $(LINUXCFG) | grep CONFIG_ARM_LPAE=y >/dev/null || echo false)
+VMLINUX_HAS_DMA32 := $(shell cat $(LINUXCFG) | grep CONFIG_ZONE_DMA32=y >/dev/null || echo false)
+
+# $(error 64BIT=$(VMLINUX_IS_64BIT) PAE36=$(VMLINUX_HAS_PAE36) PAE40=$(VMLINUX_HAS_PAE40) DMA32=$(VMLINUX_HAS_DMA32) MMU36=$(SGX_FEATURE_36BIT_MMU))
+
 ifneq ($(VMLINUX_IS_64BIT),false)
-$(warning $$(KERNELDIR)/vmlinux is 64-bit, which is not supported. Kbuild may fail.)
+$(warning $$(KERNELDIR)/vmlinux: Note: vmlinux is 64-bit, which is supported but currently experimental.)
 endif
 else
 $(warning $$(KERNELDIR)/vmlinux does not exist. Kbuild may fail.)
+endif
+endif
+
+ifneq ($(VMLINUX_HAS_PAE40),false)
+ifeq ($(VMLINUX_HAS_DMA32),false)
+$(warning SGX MMUs are currently supported up to only 36 bits max. Your Kernel is built with 40-bit PAE but does not have CONFIG_ZONE_DMA32.)
+$(warning This means you must ensure the runtime system has <= 4GB of RAM, or there will be BIG problems...)
+endif
+endif
+
+ifneq ($(SGX_FEATURE_36BIT_MMU),1)
+ifneq ($(VMLINUX_IS_64BIT),false)
+# Kernel is 64-bit
+ifeq ($(VMLINUX_HAS_DMA32),false)
+$(warning SGX is configured with 32-bit MMU. Your Kernel is 64-bit but does not have CONFIG_ZONE_DMA32.)
+$(warning This means you must ensure the runtime system has <= 4GB of RAM, or there will be BIG problems...)
+endif
+else
+ # Kernel is 32-bit
+ifneq ($(VMLINUX_HAS_PAE36),false)
+ifeq ($(VMLINUX_HAS_DMA32),false)
+$(warning SGX is configured with 32-bit MMU. Your Kernel is 32-bit PAE, but does not have CONFIG_ZONE_DMA32. )
+$(warning This means you must ensure the runtime system has <= 4GB of RAM, or there will be BIG problems...)
+endif
+endif
 endif
 endif
 
@@ -500,7 +545,6 @@ $(eval $(call TunableBothConfigC,PDUMP,))
 $(eval $(call TunableBothConfigC,NO_HARDWARE,))
 $(eval $(call TunableBothConfigC,PDUMP_DEBUG_OUTFILES,))
 $(eval $(call TunableBothConfigC,PVRSRV_USSE_EDM_STATUS_DEBUG,))
-$(eval $(call TunableBothConfigC,SGX_DISABLE_VISTEST_SUPPORT,))
 $(eval $(call TunableBothConfigC,PVRSRV_RESET_ON_HWTIMEOUT,))
 $(eval $(call TunableBothConfigC,SYS_USING_INTERRUPTS,1))
 $(eval $(call TunableBothConfigC,SUPPORT_EXTERNAL_SYSTEM_CACHE,))
@@ -513,6 +557,8 @@ $(eval $(call TunableBothConfigC,SUPPORT_ION,))
 $(eval $(call TunableBothConfigC,SUPPORT_HWRECOVERY_TRACE_LIMIT,))
 $(eval $(call TunableBothConfigC,SUPPORT_PVRSRV_GET_DC_SYSTEM_BUFFER,1))
 $(eval $(call TunableBothConfigC,SUPPORT_NV12_FROM_2_HWADDRS,))
+$(eval $(call TunableBothConfigC,SGX_FEATURE_36BIT_MMU,))
+$(eval $(call TunableBothConfigC,IMG_ADDRSPACE_PHYSADDR_BITS,))
 
 $(eval $(call TunableKernelConfigC,SUPPORT_LINUX_X86_WRITECOMBINE,1))
 $(eval $(call TunableKernelConfigC,SUPPORT_LINUX_X86_PAT,1))

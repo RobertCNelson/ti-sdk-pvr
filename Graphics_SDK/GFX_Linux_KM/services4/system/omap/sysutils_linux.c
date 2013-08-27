@@ -57,7 +57,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
 
-#if defined(SYS_OMAP4_HAS_DVFS_FRAMEWORK)
+#if defined(SYS_OMAP_HAS_DVFS_FRAMEWORK)
 #include <linux/opp.h>
 #endif
 
@@ -156,10 +156,10 @@ IMG_VOID SysGetSGXTimingInformation(SGX_TIMING_INFORMATION *psTimingInfo)
 #if !defined(NO_HARDWARE)
 	PVR_ASSERT(atomic_read(&gpsSysSpecificData->sSGXClocksEnabled) != 0);
 #endif
-#if defined(SYS_OMAP4_HAS_DVFS_FRAMEWORK)
+#if defined(SYS_OMAP_HAS_DVFS_FRAMEWORK)
 	psTimingInfo->ui32CoreClockSpeed =
 		gpsSysSpecificData->pui32SGXFreqList[gpsSysSpecificData->ui32SGXFreqListIndex];
-#else /* defined(SYS_OMAP4_HAS_DVFS_FRAMEWORK) */
+#else /* defined(SYS_OMAP_HAS_DVFS_FRAMEWORK) */
 	psTimingInfo->ui32CoreClockSpeed = SYS_SGX_CLOCK_SPEED;
 #endif
 	psTimingInfo->ui32HWRecoveryFreq = SYS_SGX_HWRECOVERY_TIMEOUT_FREQ;
@@ -196,7 +196,7 @@ PVRSRV_ERROR EnableSGXClocks(SYS_DATA *psSysData)
 	PVR_DPF((PVR_DBG_MESSAGE, "EnableSGXClocks: Enabling SGX Clocks"));
 
 #if defined(LDM_PLATFORM) && !defined(PVR_DRI_DRM_NOT_PCI)
-#if defined(SYS_OMAP4_HAS_DVFS_FRAMEWORK)
+#if defined(SYS_OMAP_HAS_DVFS_FRAMEWORK)
 	{
 		struct gpu_platform_data *pdata;
 		IMG_UINT32 max_freq_index;
@@ -215,7 +215,9 @@ PVRSRV_ERROR EnableSGXClocks(SYS_DATA *psSysData)
 		{
 			PVR_ASSERT(pdata->device_scale != IMG_NULL);
 			res = pdata->device_scale(&gpsPVRLDMDev->dev,
+#if (LINUX_VERSION_CODE <= KERNEL_VERSION(3,4,0))
 									  &gpsPVRLDMDev->dev,
+#endif
 									  psSysSpecData->pui32SGXFreqList[max_freq_index]);
 			if (res == 0)
 			{
@@ -233,7 +235,7 @@ PVRSRV_ERROR EnableSGXClocks(SYS_DATA *psSysData)
 			}
 		}
 	}
-#endif /* defined(SYS_OMAP4_HAS_DVFS_FRAMEWORK) */
+#endif /* defined(SYS_OMAP_HAS_DVFS_FRAMEWORK) */
 	{
 		/*
 		 * pm_runtime_get_sync returns 1 after the module has
@@ -293,7 +295,7 @@ IMG_VOID DisableSGXClocks(SYS_DATA *psSysData)
 			PVR_DPF((PVR_DBG_ERROR, "DisableSGXClocks: pm_runtime_put_sync failed (%d)", -res));
 		}
 	}
-#if defined(SYS_OMAP4_HAS_DVFS_FRAMEWORK)
+#if defined(SYS_OMAP_HAS_DVFS_FRAMEWORK)
 	{
 		struct gpu_platform_data *pdata;
 		int res;
@@ -310,7 +312,9 @@ IMG_VOID DisableSGXClocks(SYS_DATA *psSysData)
 		{
 			PVR_ASSERT(pdata->device_scale != IMG_NULL);
 			res = pdata->device_scale(&gpsPVRLDMDev->dev,
+#if (LINUX_VERSION_CODE <= KERNEL_VERSION(3,4,0))
 									  &gpsPVRLDMDev->dev,
+#endif
 									  psSysSpecData->pui32SGXFreqList[0]);
 			if (res == 0)
 			{
@@ -328,7 +332,7 @@ IMG_VOID DisableSGXClocks(SYS_DATA *psSysData)
 			}
 		}
 	}
-#endif /* defined(SYS_OMAP4_HAS_DVFS_FRAMEWORK) */
+#endif /* defined(SYS_OMAP_HAS_DVFS_FRAMEWORK) */
 #endif /* defined(LDM_PLATFORM) && !defined(PVR_DRI_DRM_NOT_PCI) */
 
 	/* Indicate that the SGX clocks are disabled */
@@ -357,6 +361,14 @@ static PVRSRV_ERROR AcquireGPTimer(SYS_SPECIFIC_DATA *psSysSpecData)
 	PVR_ASSERT(psSysSpecData->psGPTimer == NULL);
 
 	/*
+	 * This code has problems on module reload for OMAP5 running Linux
+	 * 3.4.10, due to omap2_dm_timer_set_src (called by
+	 * omap_dm_timer_request_specific), being unable to set the parent
+	 * clock to OMAP_TIMER_SRC_32_KHZ.
+	 * Not calling omap_dm_timer_set_source doesn't help.
+	 */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,4,0)) || !defined(MODULE)
+	/*
 	 * This code could try requesting registers 9, 10, and 11,
 	 * stopping at the first succesful request.  We'll stick with
 	 * 11 for now, as it avoids having to hard code yet more
@@ -370,7 +382,6 @@ static PVRSRV_ERROR AcquireGPTimer(SYS_SPECIFIC_DATA *psSysSpecData)
 		return PVRSRV_ERROR_CLOCK_REQUEST_FAILED;
 	}
 
-	/* Set timer source to system clock */
 	omap_dm_timer_set_source(psSysSpecData->psGPTimer, OMAP_TIMER_SRC_SYS_CLK);
 	omap_dm_timer_enable(psSysSpecData->psGPTimer);
 
@@ -380,10 +391,13 @@ static PVRSRV_ERROR AcquireGPTimer(SYS_SPECIFIC_DATA *psSysSpecData)
 	omap_dm_timer_start(psSysSpecData->psGPTimer);
 
 	/*
-	 * The DM timer API doesn't have a mechansim for obtaining the
+	 * The DM timer API doesn't have a mechanism for obtaining the
 	 * physical address of the counter register.
 	 */
-	psSysSpecData->sTimerRegPhysBase.uiAddr = SYS_OMAP4430_GP11TIMER_REGS_SYS_PHYS_BASE;
+	psSysSpecData->sTimerRegPhysBase.uiAddr = SYS_OMAP_GP11TIMER_REGS_SYS_PHYS_BASE;
+#else	/* (LINUX_VERSION_CODE <= KERNEL_VERSION(3,4,0)) || !defined(MODULE) */
+	(void)psSysSpecData;
+#endif	/* (LINUX_VERSION_CODE <= KERNEL_VERSION(3,4,0)) || !defined(MODULE) */
 
 	return PVRSRV_OK;
 }
@@ -497,7 +511,7 @@ static PVRSRV_ERROR AcquireGPTimer(SYS_SPECIFIC_DATA *psSysSpecData)
 #endif	/* defined(PVR_OMAP4_TIMING_PRCM) */
 
 	/* Set the timer to non-posted mode */
-	sTimerRegPhysBase.uiAddr = SYS_OMAP4430_GP11TIMER_TSICR_SYS_PHYS_BASE;
+	sTimerRegPhysBase.uiAddr = SYS_OMAP_GP11TIMER_TSICR_SYS_PHYS_BASE;
 	pui32TimerEnable = OSMapPhysToLin(sTimerRegPhysBase,
                   4,
                   PVRSRV_HAP_KERNEL_ONLY|PVRSRV_HAP_UNCACHED,
@@ -523,7 +537,7 @@ static PVRSRV_ERROR AcquireGPTimer(SYS_SPECIFIC_DATA *psSysSpecData)
 		    hTimerEnable);
 
 	/* Enable the timer */
-	sTimerRegPhysBase.uiAddr = SYS_OMAP4430_GP11TIMER_ENABLE_SYS_PHYS_BASE;
+	sTimerRegPhysBase.uiAddr = SYS_OMAP_GP11TIMER_ENABLE_SYS_PHYS_BASE;
 	pui32TimerEnable = OSMapPhysToLin(sTimerRegPhysBase,
                   4,
                   PVRSRV_HAP_KERNEL_ONLY|PVRSRV_HAP_UNCACHED,
@@ -695,9 +709,9 @@ PVRSRV_ERROR SysPMRuntimeUnregister(void)
 
 PVRSRV_ERROR SysDvfsInitialize(SYS_SPECIFIC_DATA *psSysSpecificData)
 {
-#if !defined(SYS_OMAP4_HAS_DVFS_FRAMEWORK)
+#if !defined(SYS_OMAP_HAS_DVFS_FRAMEWORK)
 	PVR_UNREFERENCED_PARAMETER(psSysSpecificData);
-#else /* !defined(SYS_OMAP4_HAS_DVFS_FRAMEWORK) */
+#else /* !defined(SYS_OMAP_HAS_DVFS_FRAMEWORK) */
 	IMG_UINT32 i, *freq_list;
 	IMG_INT32 opp_count;
 	unsigned long freq;
@@ -758,16 +772,16 @@ PVRSRV_ERROR SysDvfsInitialize(SYS_SPECIFIC_DATA *psSysSpecificData)
 
 	/* Start in unknown state - no frequency request to DVFS yet made */
 	psSysSpecificData->ui32SGXFreqListIndex = opp_count;
-#endif /* !defined(SYS_OMAP4_HAS_DVFS_FRAMEWORK) */
+#endif /* !defined(SYS_OMAP_HAS_DVFS_FRAMEWORK) */
 
 	return PVRSRV_OK;
 }
 
 PVRSRV_ERROR SysDvfsDeinitialize(SYS_SPECIFIC_DATA *psSysSpecificData)
 {
-#if !defined(SYS_OMAP4_HAS_DVFS_FRAMEWORK)
+#if !defined(SYS_OMAP_HAS_DVFS_FRAMEWORK)
 	PVR_UNREFERENCED_PARAMETER(psSysSpecificData);
-#else /* !defined(SYS_OMAP4_HAS_DVFS_FRAMEWORK) */
+#else /* !defined(SYS_OMAP_HAS_DVFS_FRAMEWORK) */
 	/*
 	 * We assume this function is only called if SysDvfsInitialize() was
 	 * completed successfully before.
@@ -787,7 +801,9 @@ PVRSRV_ERROR SysDvfsDeinitialize(SYS_SPECIFIC_DATA *psSysSpecificData)
 
 		PVR_ASSERT(pdata->device_scale != IMG_NULL);
 		res = pdata->device_scale(&gpsPVRLDMDev->dev,
+#if (LINUX_VERSION_CODE <= KERNEL_VERSION(3,4,0))
 								  &gpsPVRLDMDev->dev,
+#endif
 								  psSysSpecificData->pui32SGXFreqList[0]);
 		if (res == -EBUSY)
 		{
@@ -804,7 +820,7 @@ PVRSRV_ERROR SysDvfsDeinitialize(SYS_SPECIFIC_DATA *psSysSpecificData)
 	kfree(psSysSpecificData->pui32SGXFreqList);
 	psSysSpecificData->pui32SGXFreqList = 0;
 	psSysSpecificData->ui32SGXFreqListSize = 0;
-#endif /* !defined(SYS_OMAP4_HAS_DVFS_FRAMEWORK) */
+#endif /* !defined(SYS_OMAP_HAS_DVFS_FRAMEWORK) */
 
 	return PVRSRV_OK;
 }

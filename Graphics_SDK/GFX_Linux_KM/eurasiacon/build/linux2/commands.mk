@@ -98,7 +98,7 @@ endef
 define target-executable-cxx-from-o
 $(if $(V),,@echo "  LD      " $(call relative-to-top,$@))
 $(CXX) \
-	$(SYS_EXE_LDFLAGS) $(MODULE_LDFLAGS) -o $@ \
+	$(SYS_EXE_LDFLAGS_CXX) $(SYS_EXE_LDFLAGS) $(MODULE_LDFLAGS) -o $@ \
 	$(SYS_EXE_CRTBEGIN) $(sort $(MODULE_ALL_OBJECTS)) $(SYS_EXE_CRTEND) \
 	$(MODULE_LIBRARY_DIR_FLAGS) $(MODULE_LIBRARY_FLAGS) $(LIBGCC)
 endef
@@ -116,9 +116,27 @@ endef
 define target-shared-library-cxx-from-o
 $(if $(V),,@echo "  LD      " $(call relative-to-top,$@))
 $(CXX) -shared -Wl,-Bsymbolic \
-	$(SYS_LIB_LDFLAGS) $(MODULE_LDFLAGS) -o $@ \
+	$(SYS_LIB_LDFLAGS_CXX) $(SYS_LIB_LDFLAGS) $(MODULE_LDFLAGS) -o $@ \
 	$(SYS_LIB_CRTBEGIN) $(sort $(MODULE_ALL_OBJECTS)) $(SYS_LIB_CRTEND) \
 	$(MODULE_LIBRARY_DIR_FLAGS) $(MODULE_LIBRARY_FLAGS) $(LIBGCC)
+endef
+
+define host-shared-library-from-o
+$(if $(V),,@echo "  HOST_LD      " $(call relative-to-top,$@))
+$(HOST_CC) -shared -Wl,-Bsymbolic \
+	$(MODULE_HOST_LDFLAGS) -o $@ \
+	$(sort $(MODULE_ALL_OBJECTS)) \
+	$(MODULE_LIBRARY_DIR_FLAGS) $(MODULE_LIBRARY_FLAGS)
+endef
+
+# If there were any C++ source files in a shared library, we use this recipe,
+# which runs the C++ compiler to link the final library
+define host-shared-library-cxx-from-o
+$(if $(V),,@echo "  HOST_LD      " $(call relative-to-top,$@))
+$(HOST_CXX) -shared -Wl,-Bsymbolic \
+	$(MODULE_HOST_LDFLAGS) -o $@ \
+	$(sort $(MODULE_ALL_OBJECTS)) \
+	$(MODULE_LIBRARY_DIR_FLAGS) $(MODULE_LIBRARY_FLAGS)
 endef
 
 define target-copy-debug-information

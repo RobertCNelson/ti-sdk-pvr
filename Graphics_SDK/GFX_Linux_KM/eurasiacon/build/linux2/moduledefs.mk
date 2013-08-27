@@ -61,7 +61,11 @@ MODULE_INTERMEDIATES_DIR := $(if $(MODULE_HOST_BUILD),$(HOST_INTERMEDIATES)/$(TH
 $(MODULE_INTERMEDIATES_DIR):
 	$(make-directory)
 
+# These are used for messages and variable names where we need to say "host"
+# or "target" according to the module build type.
 Host_or_target := $(if $(MODULE_HOST_BUILD),Host,Target)
+host_or_target := $(if $(MODULE_HOST_BUILD),host,target)
+HOST_OR_TARGET := $(if $(MODULE_HOST_BUILD),HOST,TARGET)
 
 # These define the rules for finding source files.
 # - If a name begins with a slash, we strip $(TOP) off the front if it begins

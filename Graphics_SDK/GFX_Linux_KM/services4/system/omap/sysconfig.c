@@ -163,7 +163,7 @@ static PVRSRV_ERROR SysLocateDevices(SYS_DATA *psSysData)
 	 */
 
 	/* Registers */
-	gsSGXDeviceMap.ui32RegsSize = SYS_OMAP4430_SGX_REGS_SIZE;
+	gsSGXDeviceMap.ui32RegsSize = SYS_OMAP_SGX_REGS_SIZE;
 
 	eError = OSBaseAllocContigMemory(gsSGXDeviceMap.ui32RegsSize,
 									 &gsSGXRegsCPUVAddr,
@@ -215,17 +215,22 @@ static PVRSRV_ERROR SysLocateDevices(SYS_DATA *psSysData)
 		SysSysPAddrToCpuPAddr(gsSGXDeviceMap.sRegsSysPBase);
 	PVR_TRACE(("SGX register base: 0x%lx", (unsigned long)gsSGXDeviceMap.sRegsCpuPBase.uiAddr));
 
+#if defined(SGX544) && defined(SGX_FEATURE_MP)
+	/* FIXME: Workaround due to HWMOD change. Otherwise this region is too small. */
+	gsSGXDeviceMap.ui32RegsSize = SYS_OMAP_SGX_REGS_SIZE;
+#else
 	gsSGXDeviceMap.ui32RegsSize = (unsigned int)(dev_res->end - dev_res->start);
+#endif
 	PVR_TRACE(("SGX register size: %d",gsSGXDeviceMap.ui32RegsSize));
 
 	gsSGXDeviceMap.ui32IRQ = dev_irq;
 	PVR_TRACE(("SGX IRQ: %d", gsSGXDeviceMap.ui32IRQ));
 #else	/* defined(PVR_LINUX_DYNAMIC_SGX_RESOURCE_INFO) */
-	gsSGXDeviceMap.sRegsSysPBase.uiAddr = SYS_OMAP4430_SGX_REGS_SYS_PHYS_BASE;
+	gsSGXDeviceMap.sRegsSysPBase.uiAddr = SYS_OMAP_SGX_REGS_SYS_PHYS_BASE;
 	gsSGXDeviceMap.sRegsCpuPBase = SysSysPAddrToCpuPAddr(gsSGXDeviceMap.sRegsSysPBase);
-	gsSGXDeviceMap.ui32RegsSize = SYS_OMAP4430_SGX_REGS_SIZE;
+	gsSGXDeviceMap.ui32RegsSize = SYS_OMAP_SGX_REGS_SIZE;
 
-	gsSGXDeviceMap.ui32IRQ = SYS_OMAP4430_SGX_IRQ;
+	gsSGXDeviceMap.ui32IRQ = SYS_OMAP_SGX_IRQ;
 
 #endif	/* defined(PVR_LINUX_DYNAMIC_SGX_RESOURCE_INFO) */
 #if defined(SGX_OCP_REGS_ENABLED)
@@ -274,46 +279,19 @@ static PVRSRV_ERROR SysLocateDevices(SYS_DATA *psSysData)
 static IMG_CHAR *SysCreateVersionString(void)
 {
 	static IMG_CHAR aszVersionString[100];
+	IMG_UINT32 ui32MaxStrLen;
 	SYS_DATA	*psSysData;
 	IMG_UINT32	ui32SGXRevision;
 	IMG_INT32	i32Count;
-#if !defined(NO_HARDWARE)
-	IMG_VOID	*pvRegsLinAddr;
-
-	pvRegsLinAddr = OSMapPhysToLin(gsSGXDeviceMap.sRegsCpuPBase,
-								   gsSGXDeviceMap.ui32RegsSize,
-								   PVRSRV_HAP_UNCACHED|PVRSRV_HAP_KERNEL_ONLY,
-								   IMG_NULL);
-	if(!pvRegsLinAddr)
-	{
-		return IMG_NULL;
-	}
-
-	ui32SGXRevision = OSReadHWReg((IMG_PVOID)((IMG_PBYTE)pvRegsLinAddr),
-								  EUR_CR_CORE_REVISION);
-#else
-	ui32SGXRevision = 0;
-#endif
 
 	SysAcquireData(&psSysData);
 
-	i32Count = OSSNPrintf(aszVersionString, 100,
-						  "SGX revision = %u.%u.%u",
-						  (IMG_UINT)((ui32SGXRevision & EUR_CR_CORE_REVISION_MAJOR_MASK)
-							>> EUR_CR_CORE_REVISION_MAJOR_SHIFT),
-						  (IMG_UINT)((ui32SGXRevision & EUR_CR_CORE_REVISION_MINOR_MASK)
-							>> EUR_CR_CORE_REVISION_MINOR_SHIFT),
-						  (IMG_UINT)((ui32SGXRevision & EUR_CR_CORE_REVISION_MAINTENANCE_MASK)
-							>> EUR_CR_CORE_REVISION_MAINTENANCE_SHIFT)
-						 );
+	ui32SGXRevision = SGX_CORE_REV;
+	ui32MaxStrLen = 99;
 
-#if !defined(NO_HARDWARE)
-	OSUnMapPhysToLin(pvRegsLinAddr,
-					 SYS_OMAP4430_SGX_REGS_SIZE,
-					 PVRSRV_HAP_UNCACHED|PVRSRV_HAP_KERNEL_ONLY,
-					 IMG_NULL);
-#endif
-
+	i32Count = OSSNPrintf(aszVersionString, ui32MaxStrLen + 1,
+			"SGX revision = %u",
+			(IMG_UINT)(ui32SGXRevision));
 	if(i32Count == -1)
 	{
 		return IMG_NULL;
@@ -536,7 +514,7 @@ PVRSRV_ERROR SysInitialise(IMG_VOID)
 #if defined(PVR_OMAP_TIMER_BASE_IN_SYS_SPEC_DATA)
 	TimerRegPhysBase = gsSysSpecificData.sTimerRegPhysBase;
 #else
-	TimerRegPhysBase.uiAddr = SYS_OMAP4430_GP11TIMER_REGS_SYS_PHYS_BASE;
+	TimerRegPhysBase.uiAddr = SYS_OMAP_GP11TIMER_REGS_SYS_PHYS_BASE;
 #endif
 	gpsSysData->pvSOCTimerRegisterKM = IMG_NULL;
 	gpsSysData->hSOCTimerRegisterOSMemHandle = 0;
@@ -685,12 +663,18 @@ PVRSRV_ERROR SysDeinitialise (SYS_DATA *psSysData)
 #endif	/* SUPPORT_ACTIVE_POWER_MANAGEMENT */
 
 		/* Deinitialise SGX */
-		eError = PVRSRVDeinitialiseDevice (gui32SGXDeviceID);
+		eError = PVRSRVDeinitialiseDevice(gui32SGXDeviceID);
 		if (eError != PVRSRV_OK)
 		{
 			PVR_DPF((PVR_DBG_ERROR,"SysDeinitialise: failed to de-init the device"));
 			return eError;
 		}
+	}
+
+	/* Disable system clocks. Must happen after last access to hardware */
+	if (SYS_SPECIFIC_DATA_TEST(gpsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_SYSCLOCKS))
+	{
+		DisableSystemClocks(gpsSysData);
 	}
 
 	if (SYS_SPECIFIC_DATA_TEST(gpsSysSpecificData, SYS_SPECIFIC_DATA_DVFS_INIT))
@@ -715,14 +699,6 @@ PVRSRV_ERROR SysDeinitialise (SYS_DATA *psSysData)
 		}
 	}
 
-	/*
-		Disable system clocks - must happen after last access to hardware.
-	 */
-	if (SYS_SPECIFIC_DATA_TEST(gpsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_SYSCLOCKS))
-	{
-		DisableSystemClocks(gpsSysData);
-	}
-
 	if (SYS_SPECIFIC_DATA_TEST(gpsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_ENVDATA))
 	{
 		eError = OSDeInitEnvData(gpsSysData->pvEnvSpecificData);
@@ -740,7 +716,7 @@ PVRSRV_ERROR SysDeinitialise (SYS_DATA *psSysData)
 	{
 #if defined(NO_HARDWARE)
 		/* Free hardware resources. */
-		OSBaseFreeContigMemory(SYS_OMAP4430_SGX_REGS_SIZE, gsSGXRegsCPUVAddr, gsSGXDeviceMap.sRegsCpuPBase);
+		OSBaseFreeContigMemory(SYS_OMAP_SGX_REGS_SIZE, gsSGXRegsCPUVAddr, gsSGXDeviceMap.sRegsCpuPBase);
 #else
 #if defined(SGX_OCP_REGS_ENABLED)
 		OSUnMapPhysToLin(gsSGXRegsCPUVAddr,

@@ -103,7 +103,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #if defined(__linux__)
 #if defined(SGX_OCP_REGS_ENABLED)
+/* FIXME: Temporary workaround for OMAP4470 and active power off in 4430 */
+#if !defined(SGX544) && defined(SUPPORT_ACTIVE_POWER_MANAGEMENT)
 #define SGX_OCP_NO_INT_BYPASS
+#endif
 #endif
 #endif
 

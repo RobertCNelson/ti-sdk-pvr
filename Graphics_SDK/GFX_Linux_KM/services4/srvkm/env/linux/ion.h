@@ -1,9 +1,6 @@
 /*************************************************************************/ /*!
-@File
-@Title          Version numbers and strings.
+@Title          Ion driver inter-operability code.
 @Copyright      Copyright (c) Imagination Technologies Ltd. All Rights Reserved
-@Description    Version numbers and strings for PVR Consumer services
-                components.
 @License        Dual MIT/GPLv2
 
 The contents of this file are subject to the MIT license as set out below.
@@ -42,27 +39,45 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */ /**************************************************************************/
 
-#ifndef _PVRVERSION_H_
-#define _PVRVERSION_H_
+#ifndef __IMG_LINUX_ION_H__
+#define __IMG_LINUX_ION_H__
 
-#define PVR_STR(X) #X
-#define PVR_STR2(X) PVR_STR(X)
+#include <linux/ion.h>
+#if defined (CONFIG_ION_OMAP)
+#include <linux/omap_ion.h>
+#endif
+#if defined (SUPPORT_ION)
+#include "img_types.h"
+#include "servicesext.h"
+#endif
 
-#define PVRVERSION_MAJ               1
-#define PVRVERSION_MIN               10
+#if !defined(SUPPORT_ION) && defined(CONFIG_ION_OMAP)
 
-#define PVRVERSION_FAMILY           "sgxddk"
-#define PVRVERSION_BRANCHNAME       "1.10"
-#define PVRVERSION_BUILD             2359475
-#define PVRVERSION_BSCONTROL        "SGX_DDK_Linux_CustomerTI"
+void PVRSRVExportFDToIONHandles(int fd, struct ion_client **client,
+								struct ion_handle *handles[2]);
 
-#define PVRVERSION_STRING           "SGX_DDK_Linux_CustomerTI sgxddk 1.10@" PVR_STR2(PVRVERSION_BUILD)
-#define PVRVERSION_STRING_SHORT     "1.10@" PVR_STR2(PVRVERSION_BUILD)
+struct ion_handle *PVRSRVExportFDToIONHandle(int fd,
+											 struct ion_client **client);
 
-#define COPYRIGHT_TXT               "Copyright (c) Imagination Technologies Ltd. All Rights Reserved."
+#endif /* !defined(SUPPORT_ION) && defined(CONFIG_ION_OMAP) */
 
-#define PVRVERSION_BUILD_HI          235
-#define PVRVERSION_BUILD_LO          9475
-#define PVRVERSION_STRING_NUMERIC    PVR_STR2(PVRVERSION_MAJ) "." PVR_STR2(PVRVERSION_MIN) "." PVR_STR2(PVRVERSION_BUILD_HI) "." PVR_STR2(PVRVERSION_BUILD_LO)
+#if defined(SUPPORT_ION)
 
-#endif /* _PVRVERSION_H_ */
+PVRSRV_ERROR IonInit(IMG_VOID);
+
+IMG_VOID IonDeinit(IMG_VOID);
+
+PVRSRV_ERROR IonImportBufferAndAcquirePhysAddr(IMG_HANDLE hIonDev,
+											   IMG_UINT32 ui32NumFDs,
+											   IMG_INT32  *pi32BufferFDs,
+											   IMG_UINT32 *pui32PageCount,
+											   IMG_SYS_PHYADDR **ppsSysPhysAddr,
+											   IMG_PVOID *ppvKernAddr0,
+											   IMG_HANDLE *phPriv,
+											   IMG_HANDLE *phUnique);
+
+IMG_VOID IonUnimportBufferAndReleasePhysAddr(IMG_HANDLE hPriv);
+
+#endif /* defined(SUPPORT_ION) */
+
+#endif /* __IMG_LINUX_ION_H__ */

@@ -224,3 +224,7 @@ clobber-%:
 	$(RM) -rf $(OUT)/host/intermediates/$* $(OUT)/target/intermediates/$* $(INTERNAL_TARGETS_FOR_$*)
 
 include $(MAKE_TOP)/bits.mk
+
+# D=nobuild stops the build before any recipes are run. This line should
+# come at the end of this makefile.
+$(if $(filter nobuild,$(D)),$(error D=nobuild given),)
