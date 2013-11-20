@@ -32,6 +32,9 @@ else
 SGXCORE = 530
 endif
 
+ifeq ($(TI_PLATFORM),ti43xx)
+CORE = -DSGX530 -DSUPPORT_SGX530 -DSGX_CORE_REV=125
+else
 ifeq ($(TI_PLATFORM),ti335x)
 CORE = -DSGX530 -DSUPPORT_SGX530 -DSGX_CORE_REV=125
 else
@@ -49,6 +52,7 @@ ifeq ($(OMAPES),3.x)
 CORE = -DSGX530 -DSUPPORT_SGX530 -DSGX_CORE_REV=121
 else
 CORE = -DSGX530 -DSUPPORT_SGX530 -DSGX_CORE_REV=103
+endif
 endif
 endif
 endif
@@ -90,13 +94,6 @@ SUPPORT_DRI_DRM_NO_LIBDRM = 1
 endif
 endif
 
-ifeq ($(TI_PLATFORM),ti335x)
-ifneq ($(SUPPORT_XORG),1)
-ifeq ($(PM_RUNTIME),1)
-PM_RUNTIME_SUPPORT = 1
-endif
-endif
-endif
 
 
 # Only enable active power management if passive power management is
@@ -109,15 +106,20 @@ ifeq ($(LDM_PLATFORM),1)
 ifeq ($(TI_PLATFORM),ti335x)
 SUPPORT_ACTIVE_POWER_MANAGEMENT ?= 0
 else
+ifeq ($(TI_PLATFORM),ti43xx)
+SUPPORT_ACTIVE_POWER_MANAGEMENT ?= 0
+else
 ifeq ($(TI_PLATFORM),ti81xx)
 SUPPORT_ACTIVE_POWER_MANAGEMENT ?= 0
 else
 SUPPORT_ACTIVE_POWER_MANAGEMENT = 1
 endif
 endif
+endif
 else
 SUPPORT_ACTIVE_POWER_MANAGEMENT = 0
 endif
+
 
 #if 0
 ifeq ($(LDM_PLATFORM),1)

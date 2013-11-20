@@ -1,6 +1,8 @@
 /*************************************************************************/ /*!
-@Title          Linux mutex interface
+@Title          OMAP Linux display driver shared DRM structures
 @Copyright      Copyright (c) Imagination Technologies Ltd. All Rights Reserved
+@Description    OMAP Linux display driver DRM structures shared between
+                kernel and user space.
 @License        Dual MIT/GPLv2
 
 The contents of this file are subject to the MIT license as set out below.
@@ -38,62 +40,25 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */ /**************************************************************************/
+#ifndef __3RDPARTY_DC_DRM_SHARED_H__
+#define __3RDPARTY_DC_DRM_SHARED_H__
+#if defined(SUPPORT_DRI_DRM)
 
+#define	PVR_DRM_DISP_CMD_ENTER_VT	1
+#define	PVR_DRM_DISP_CMD_LEAVE_VT	2
 
-#ifndef __INCLUDED_LINUX_MUTEX_H_
-#define __INCLUDED_LINUX_MUTEX_H_
+#define	PVR_DRM_DISP_CMD_ON		3
+#define	PVR_DRM_DISP_CMD_STANDBY	4
+#define	PVR_DRM_DISP_CMD_SUSPEND	5
+#define	PVR_DRM_DISP_CMD_OFF		6
 
-#include <linux/version.h>
+#define	PVR_DRM_DISP_ARG_CMD		0
+#define	PVR_DRM_DISP_ARG_DEV		1
+#define	PVR_DRM_DISP_NUM_ARGS		2
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,15))
-#include <linux/mutex.h>
-#else
-#include <asm/semaphore.h>
-#endif
+#endif	/* defined(SUPPORT_DRI_DRM) */
+#endif /* __3RDPARTY_DC_DRM_SHARED_H__ */
 
-
-
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,15))
-
-typedef struct mutex PVRSRV_LINUX_MUTEX;
-
-#else /* (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,15)) */
-
-
-typedef struct {
-    struct semaphore sSemaphore;
-    /* since Linux's struct semaphore is intended to be
-     * opaque we don't poke inside for the count and
-     * instead we track it outselves. (So we can implement
-     * LinuxIsLockedMutex)
-     */
-    atomic_t Count;
-}PVRSRV_LINUX_MUTEX;
-
-#endif
-
-enum PVRSRV_MUTEX_LOCK_CLASS
-{
-	PVRSRV_LOCK_CLASS_POWER,
-	PVRSRV_LOCK_CLASS_BRIDGE,
-	PVRSRV_LOCK_CLASS_MMAP,
-	PVRSRV_LOCK_CLASS_MM_DEBUG,
-	PVRSRV_LOCK_CLASS_PVR_DEBUG,
-};
-
-extern IMG_VOID LinuxInitMutex(PVRSRV_LINUX_MUTEX *psPVRSRVMutex);
-
-extern IMG_VOID LinuxLockMutex(PVRSRV_LINUX_MUTEX *psPVRSRVMutex);
-
-extern IMG_VOID LinuxLockMutexNested(PVRSRV_LINUX_MUTEX *psPVRSRVMutex, unsigned int uiLockClass);
-
-extern PVRSRV_ERROR LinuxLockMutexInterruptible(PVRSRV_LINUX_MUTEX *psPVRSRVMutex);
-
-extern IMG_INT32 LinuxTryLockMutex(PVRSRV_LINUX_MUTEX *psPVRSRVMutex);
-
-extern IMG_VOID LinuxUnLockMutex(PVRSRV_LINUX_MUTEX *psPVRSRVMutex);
-
-extern IMG_BOOL LinuxIsLockedMutex(PVRSRV_LINUX_MUTEX *psPVRSRVMutex);
-
-
-#endif /* __INCLUDED_LINUX_MUTEX_H_ */
+/******************************************************************************
+ End of file (3rdparty_dc_drm_shared.h)
+******************************************************************************/

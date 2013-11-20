@@ -174,11 +174,7 @@ MODULE_SUPPORTED_DEVICE(DEVNAME);
 #if !defined(PVR_OMAPLFB_DRM_FB)
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,34))
 #define OMAP_DSS_DRIVER(drv, dev) struct omap_dss_driver *drv = (dev) != NULL ? (dev)->driver : NULL
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,7,0))
-#define OMAP_DSS_MANAGER(man, dev) struct omap_overlay_manager *man = (dev) != NULL ? (dev)->manager : NULL
-#else
-#define OMAP_DSS_MANAGER(man, dev) struct omap_overlay_manager *man = (dev) != NULL ? (dev)->output->manager : NULL
-#endif
+#define OMAP_DSS_MANAGER(man, dev) struct omap_overlay_manager *man = (dev) != NULL ? (dev)->managers[0] : NULL
 
 #define	WAIT_FOR_VSYNC(man)	((man)->wait_for_vsync)
 #else
@@ -355,9 +351,11 @@ void OMAPLFBFlip(OMAPLFB_DEVINFO *psDevInfo, OMAPLFB_BUFFER *psBuffer)
 	if (!lock_fb_info(psDevInfo->psLINFBInfo))
 	{
 		DEBUG_PRINTK((KERN_WARNING DRIVER_PREFIX
-			": %s: Device %u: Couldn't lock FB info\n", __FUNCTION__,  psDevInfo->uiFBDevID));
+		": %s: Device %u: Couldn't lock FB info\n", __FUNCTION__,  psDevInfo->uiFBDevID));
 		return;
 	}
+
+
 	OMAPLFB_CONSOLE_LOCK();
 
 	sFBVar = psDevInfo->psLINFBInfo->var;
@@ -817,7 +815,8 @@ OMAPLFB_BOOL OMAPLFBWaitForVSync(OMAPLFB_DEVINFO *psDevInfo)
 	return OMAPLFB_TRUE;
 #else	/* defined(PVR_OMAPLFB_DRM_FB) */
 #if FBDEV_PRESENT
-	struct omap_dss_device *psDSSDev = fb2display(psDevInfo->psLINFBInfo);
+	struct omapfb_info *ofbi = FB2OFB(psDevInfo->psLINFBInfo);
+	struct omapfb2_device *psDSSDev = ofbi->fbdev;
 	OMAP_DSS_MANAGER(psDSSMan, psDSSDev);
 
 	if (psDSSMan != NULL && WAIT_FOR_VSYNC(psDSSMan) != NULL)
@@ -955,7 +954,8 @@ static OMAPLFB_ERROR OMAPLFBBlankOrUnblankDisplay(OMAPLFB_DEVINFO *psDevInfo, IM
 		": %s: Device %u: Couldn't lock FB info\n", __FUNCTION__,  psDevInfo->uiFBDevID);
 		return (OMAPLFB_ERROR_GENERIC);
 	}
-       /*
+
+	/*
 	* FBINFO_MISC_USEREVENT is set to avoid a deadlock resulting from
 	* fb_blank being called recursively due from within the fb_blank event
 	* notification.
@@ -984,6 +984,8 @@ OMAPLFB_ERROR OMAPLFBUnblankDisplay(OMAPLFB_DEVINFO *psDevInfo)
 	return OMAPLFBBlankOrUnblankDisplay(psDevInfo, IMG_FALSE);
 }
 
+
+
 #ifdef CONFIG_HAS_EARLYSUSPEND
 static void OMAPLFBEarlyUnblankDisplay(OMAPLFB_DEVINFO *psDevInfo)
 {
@@ -991,7 +993,6 @@ static void OMAPLFBEarlyUnblankDisplay(OMAPLFB_DEVINFO *psDevInfo)
 	fb_blank(psDevInfo->psLINFBInfo, 0);
 	OMAPLFB_CONSOLE_UNLOCK();
 }
-
 
 /* Blank the screen */
 static void OMAPLFBEarlyBlankDisplay(OMAPLFB_DEVINFO *psDevInfo)

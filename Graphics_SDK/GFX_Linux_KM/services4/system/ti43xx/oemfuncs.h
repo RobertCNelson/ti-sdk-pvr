@@ -1,5 +1,5 @@
 /*************************************************************************/ /*!
-@Title          Linux mutex interface
+@Title          SGX kernel/client driver interface structures and prototypes
 @Copyright      Copyright (c) Imagination Technologies Ltd. All Rights Reserved
 @License        Dual MIT/GPLv2
 
@@ -39,61 +39,40 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */ /**************************************************************************/
 
+#if !defined(__OEMFUNCS_H__)
+#define __OEMFUNCS_H__
 
-#ifndef __INCLUDED_LINUX_MUTEX_H_
-#define __INCLUDED_LINUX_MUTEX_H_
-
-#include <linux/version.h>
-
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,15))
-#include <linux/mutex.h>
-#else
-#include <asm/semaphore.h>
+#if defined (__cplusplus)
+extern "C" {
 #endif
 
-
-
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,15))
-
-typedef struct mutex PVRSRV_LINUX_MUTEX;
-
-#else /* (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,15)) */
-
-
-typedef struct {
-    struct semaphore sSemaphore;
-    /* since Linux's struct semaphore is intended to be
-     * opaque we don't poke inside for the count and
-     * instead we track it outselves. (So we can implement
-     * LinuxIsLockedMutex)
-     */
-    atomic_t Count;
-}PVRSRV_LINUX_MUTEX;
-
-#endif
-
-enum PVRSRV_MUTEX_LOCK_CLASS
+/* function in/out data structures: */
+typedef IMG_UINT32   (*PFN_SRV_BRIDGEDISPATCH)( IMG_UINT32  Ioctl,
+												IMG_BYTE   *pInBuf,
+												IMG_UINT32  InBufLen,
+											    IMG_BYTE   *pOutBuf,
+												IMG_UINT32  OutBufLen,
+												IMG_UINT32 *pdwBytesTransferred);
+/*
+	Function table for kernel 3rd party driver to kernel services
+*/
+typedef struct PVRSRV_DC_OEM_JTABLE_TAG
 {
-	PVRSRV_LOCK_CLASS_POWER,
-	PVRSRV_LOCK_CLASS_BRIDGE,
-	PVRSRV_LOCK_CLASS_MMAP,
-	PVRSRV_LOCK_CLASS_MM_DEBUG,
-	PVRSRV_LOCK_CLASS_PVR_DEBUG,
-};
+	PFN_SRV_BRIDGEDISPATCH			pfnOEMBridgeDispatch;
+	IMG_PVOID						pvDummy1;
+	IMG_PVOID						pvDummy2;
+	IMG_PVOID						pvDummy3;
 
-extern IMG_VOID LinuxInitMutex(PVRSRV_LINUX_MUTEX *psPVRSRVMutex);
+} PVRSRV_DC_OEM_JTABLE;
 
-extern IMG_VOID LinuxLockMutex(PVRSRV_LINUX_MUTEX *psPVRSRVMutex);
+#define OEM_GET_EXT_FUNCS			(1<<1)
 
-extern IMG_VOID LinuxLockMutexNested(PVRSRV_LINUX_MUTEX *psPVRSRVMutex, unsigned int uiLockClass);
+#if defined(__cplusplus)
+}
+#endif
 
-extern PVRSRV_ERROR LinuxLockMutexInterruptible(PVRSRV_LINUX_MUTEX *psPVRSRVMutex);
+#endif	/* __OEMFUNCS_H__ */
 
-extern IMG_INT32 LinuxTryLockMutex(PVRSRV_LINUX_MUTEX *psPVRSRVMutex);
-
-extern IMG_VOID LinuxUnLockMutex(PVRSRV_LINUX_MUTEX *psPVRSRVMutex);
-
-extern IMG_BOOL LinuxIsLockedMutex(PVRSRV_LINUX_MUTEX *psPVRSRVMutex);
-
-
-#endif /* __INCLUDED_LINUX_MUTEX_H_ */
+/*****************************************************************************
+ End of file (oemfuncs.h)
+*****************************************************************************/

@@ -45,14 +45,23 @@ ifneq ($(FBDEV),no)
 EXTRA_CFLAGS += -DFBDEV_PRESENT
 endif
 
+ifeq ($(TI_PLATFORM),ti43xx)
+ifneq ($(PM_RUNTIME),no)
+EXTRA_CFLAGS += -DPM_RUNTIME_SUPPORT
+endif
+endif
+
 ifeq ($(TI_PLATFORM),ti335x)
 ifneq ($(SUPPORT_XORG),1)
-ifeq ($(PM_RUNTIME),1)
+ifneq ($(PM_RUNTIME),no)
 EXTRA_CFLAGS += -DPM_RUNTIME_SUPPORT
 endif
 endif
 endif
 
+ifeq ($(TI_PLATFORM),ti43xx)
+DRIFILES = services4/srvkm/env/linux/pvr_drm.c services4/3rdparty/dc_ti43xx_linux/omaplfb_linux.c services4/3rdparty/dc_ti43xx_linux/omaplfb_displayclass.c
+else
 ifeq ($(TI_PLATFORM),ti335x)
 DRIFILES = services4/srvkm/env/linux/pvr_drm.c services4/3rdparty/dc_ti335x_linux/omaplfb_linux.c services4/3rdparty/dc_ti335x_linux/omaplfb_displayclass.c
 else
@@ -60,6 +69,7 @@ ifeq ($(TI_PLATFORM),ti81xx)
 DRIFILES = services4/srvkm/env/linux/pvr_drm.c services4/3rdparty/dc_ti81xx_linux/omaplfb_linux.c services4/3rdparty/dc_ti81xx_linux/omaplfb_displayclass.c
 else
 DRIFILES = services4/srvkm/env/linux/pvr_drm.c services4/3rdparty/dc_omapfb3_linux/omaplfb_linux.c services4/3rdparty/dc_omapfb3_linux/omaplfb_displayclass.c
+endif
 endif
 endif
 
@@ -95,6 +105,9 @@ pvrsrvkm-y +=  $(DRIFILES:.c=.o)
 endif
 
 ifneq ($(SUPPORT_XORG),1)
+ifeq ($(TI_PLATFORM),ti43xx)
+obj-y := services4/3rdparty/dc_ti43xx_linux/
+else
 ifeq ($(TI_PLATFORM),ti335x)
 obj-y := services4/3rdparty/dc_ti335x_linux/
 else
@@ -102,6 +115,7 @@ ifeq ($(TI_PLATFORM),ti81xx)
 obj-y := services4/3rdparty/dc_ti81xx_linux/
 else
 obj-y := services4/3rdparty/dc_omapfb3_linux/
+endif
 endif
 endif
 endif

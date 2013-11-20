@@ -91,7 +91,6 @@ extern bool already_deasserted;
 #endif
 #endif
 
-
 static PVRSRV_ERROR PowerLockWrap(SYS_SPECIFIC_DATA *psSysSpecData, IMG_BOOL bTryLock)
 {
 	if (!in_interrupt())
@@ -199,14 +198,12 @@ PVRSRV_ERROR EnableSGXClocks(SYS_DATA *psSysData)
         IMG_INT res;
         long lRate,lNewRate;
 #endif
-	int ret;
 	/* SGX clocks already enabled? */
 	if (atomic_read(&psSysSpecData->sSGXClocksEnabled) != 0)
 	{
 		return PVRSRV_OK;
 	}
 
-	PVR_DPF((PVR_DBG_MESSAGE, "EnableSGXClocks: Enabling SGX Clocks"));
 #if !defined(PM_RUNTIME_SUPPORT)
         PVR_DPF((PVR_DBG_MESSAGE, "EnableSGXClocks: Enabling SGX Clocks"));
         res=clk_enable(psSysSpecData->psSGX_FCK);
@@ -296,17 +293,15 @@ PVRSRV_ERROR EnableSGXClocks(SYS_DATA *psSysData)
 			PVR_DPF((PVR_DBG_ERROR, "EnableSGXClocks: pm_runtime_get_sync failed (%d)", -res));
 			return PVRSRV_ERROR_UNABLE_TO_ENABLE_CLOCK;
 		}
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,11,0))
-	if (!already_deasserted)
-	{
-		ret = reset_control_is_reset(rstc);
-		if (ret <= 0)
+		if (!already_deasserted)
 		{
-			PVR_DPF((PVR_DBG_MESSAGE, "reset control reset"));
+			int ret = reset_control_is_reset(rstc);
+			if (ret <= 0)
+			{
+				PVR_DPF((PVR_DBG_MESSAGE, "reset control reset"));
+			}
 		}
-	}
-	reset_control_put(rstc);
-#endif
+		reset_control_put(rstc);
 
 #endif
 	}
@@ -461,7 +456,7 @@ static PVRSRV_ERROR AcquireGPTimer(SYS_SPECIFIC_DATA *psSysSpecData)
 	 * The DM timer API doesn't have a mechanism for obtaining the
 	 * physical address of the counter register.
 	 */
-	psSysSpecData->sTimerRegPhysBase.uiAddr = SYS_TI335x_GP7TIMER_REGS_SYS_PHYS_BASE;
+	psSysSpecData->sTimerRegPhysBase.uiAddr = SYS_TI43xx_GP7TIMER_REGS_SYS_PHYS_BASE;
 #else	/* (LINUX_VERSION_CODE <= KERNEL_VERSION(3,4,0)) || !defined(MODULE) */
 	(void)psSysSpecData;
 #endif	/* (LINUX_VERSION_CODE <= KERNEL_VERSION(3,4,0)) || !defined(MODULE) */
@@ -489,16 +484,14 @@ static void ReleaseGPTimer(SYS_SPECIFIC_DATA *psSysSpecData)
 		omap_dm_timer_disable(psSysSpecData->psGPTimer);
 
 		omap_dm_timer_free(psSysSpecData->psGPTimer);
-#if defined(PVR_OMAP_TIMER_BASE_IN_SYS_SPEC_DATA)
+
 		psSysSpecData->sTimerRegPhysBase.uiAddr = 0;
-#endif
 
 		psSysSpecData->psGPTimer = NULL;
 	}
 
 }
 #else	/* PVR_OMAP_USE_DM_TIMER_API */
-
 /*!
 ******************************************************************************
 
@@ -518,6 +511,7 @@ static PVRSRV_ERROR AcquireGPTimer(SYS_SPECIFIC_DATA *psSysSpecData)
 	IMG_INT rate;
 #endif
 	PVRSRV_ERROR eError;
+
 	IMG_CPU_PHYADDR sTimerRegPhysBase;
 	IMG_HANDLE hTimerEnable;
 	IMG_UINT32 *pui32TimerEnable;
@@ -526,12 +520,9 @@ static PVRSRV_ERROR AcquireGPTimer(SYS_SPECIFIC_DATA *psSysSpecData)
 #endif
 
 #if defined(PVR_OMAP4_TIMING_PRCM)
+#if 0
 	/* assert our dependence on the GPTIMER11 module */
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,8,0))
-	psCLK = clk_get(NULL, "timer7_fck");
-#else
-	psCLK = clk_get(NULL, "gpt7_fck");
-#endif
+	psCLK = clk_get(NULL, "gpt11_fck");
 	if (IS_ERR(psCLK))
 	{
 		PVR_DPF((PVR_DBG_ERROR, "EnableSystemClocks: Couldn't get GPTIMER11 functional clock"));
@@ -539,17 +530,15 @@ static PVRSRV_ERROR AcquireGPTimer(SYS_SPECIFIC_DATA *psSysSpecData)
 	}
 	psSysSpecData->psGPT11_FCK = psCLK;
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,8,0))
-	psCLK = clk_get(NULL, "gpt7_ick");
+	psCLK = clk_get(NULL, "gpt11_ick");
 	if (IS_ERR(psCLK))
 	{
 		PVR_DPF((PVR_DBG_ERROR, "EnableSystemClocks: Couldn't get GPTIMER11 interface clock"));
 		goto ExitError;
 	}
 	psSysSpecData->psGPT11_ICK = psCLK;
-#endif
-#if 0
-	sys_ck = clk_get(NULL, "sys_clkin_ck");
+
+	sys_ck = clk_get(NULL, "sys_ck");
 	if (IS_ERR(sys_ck))
 	{
 		PVR_DPF((PVR_DBG_ERROR, "EnableSystemClocks: Couldn't get System clock"));
@@ -566,7 +555,7 @@ static PVRSRV_ERROR AcquireGPTimer(SYS_SPECIFIC_DATA *psSysSpecData)
 		goto ExitError;
 		}
 	}
-#endif
+
 	rate = clk_get_rate(psSysSpecData->psGPT11_FCK);
 	PVR_TRACE(("GPTIMER11 clock is %dMHz", HZ_TO_MHZ(rate)));
 
@@ -577,8 +566,6 @@ static PVRSRV_ERROR AcquireGPTimer(SYS_SPECIFIC_DATA *psSysSpecData)
 		goto ExitError;
 	}
 
-
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,8,0))
 	res = clk_enable(psSysSpecData->psGPT11_ICK);
 	if (res < 0)
 	{
@@ -589,7 +576,7 @@ static PVRSRV_ERROR AcquireGPTimer(SYS_SPECIFIC_DATA *psSysSpecData)
 #endif	/* defined(PVR_OMAP4_TIMING_PRCM) */
 
 	/* Set the timer to non-posted mode */
-	sTimerRegPhysBase.uiAddr = SYS_TI335x_GP7TIMER_TSICR_SYS_PHYS_BASE;
+	sTimerRegPhysBase.uiAddr = SYS_TI43xx_GP7TIMER_TSICR_SYS_PHYS_BASE;
 	pui32TimerEnable = OSMapPhysToLin(sTimerRegPhysBase,
                   4,
                   PVRSRV_HAP_KERNEL_ONLY|PVRSRV_HAP_UNCACHED,
@@ -615,7 +602,7 @@ static PVRSRV_ERROR AcquireGPTimer(SYS_SPECIFIC_DATA *psSysSpecData)
 		    hTimerEnable);
 
 	/* Enable the timer */
-	sTimerRegPhysBase.uiAddr = SYS_TI335x_GP7TIMER_ENABLE_SYS_PHYS_BASE;
+	sTimerRegPhysBase.uiAddr = SYS_TI43xx_GP7TIMER_ENABLE_SYS_PHYS_BASE;
 	pui32TimerEnable = OSMapPhysToLin(sTimerRegPhysBase,
                   4,
                   PVRSRV_HAP_KERNEL_ONLY|PVRSRV_HAP_UNCACHED,
@@ -643,9 +630,13 @@ static PVRSRV_ERROR AcquireGPTimer(SYS_SPECIFIC_DATA *psSysSpecData)
 
 ExitDisableGPT11ICK:
 #if defined(PVR_OMAP4_TIMING_PRCM)
+#if 0
 	clk_disable(psSysSpecData->psGPT11_ICK);
+#endif
 ExitDisableGPT11FCK:
+#if 0
 	clk_disable(psSysSpecData->psGPT11_FCK);
+#endif
 ExitError:
 #endif	/* defined(PVR_OMAP4_TIMING_PRCM) */
 	eError = PVRSRV_ERROR_CLOCK_REQUEST_FAILED;
@@ -697,11 +688,11 @@ static void ReleaseGPTimer(SYS_SPECIFIC_DATA *psSysSpecData)
 	psSysSpecData->sTimerRegPhysBase.uiAddr = 0;
 #endif
 #if defined(PVR_OMAP4_TIMING_PRCM)
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,8,0))
+#if 0
 	clk_disable(psSysSpecData->psGPT11_ICK);
-#endif
 
 	clk_disable(psSysSpecData->psGPT11_FCK);
+#endif
 #endif	/* defined(PVR_OMAP4_TIMING_PRCM) */
 }
 #endif	/* PVR_OMAP_USE_DM_TIMER_API */
@@ -733,8 +724,8 @@ PVRSRV_ERROR EnableSystemClocks(SYS_DATA *psSysData)
 	SYS_SPECIFIC_DATA *psSysSpecData = (SYS_SPECIFIC_DATA *) psSysData->pvSysSpecificData;
 #if !defined(PM_RUNTIME_SUPPORT)
         struct clk *psCLK;
+	IMG_INT res;
 #endif
-
 	PVR_TRACE(("EnableSystemClocks: Enabling System Clocks"));
 
 	if (!psSysSpecData->bSysClocksOneTimeInit)
@@ -744,16 +735,44 @@ PVRSRV_ERROR EnableSystemClocks(SYS_DATA *psSysData)
 		atomic_set(&psSysSpecData->sSGXClocksEnabled, 0);
 
 		psSysSpecData->bSysClocksOneTimeInit = IMG_TRUE;
+
 #if !defined(PM_RUNTIME_SUPPORT)
-                psCLK = clk_get(NULL, "sgx_ck");
+		psCLK = clk_get(NULL, SGX_PARENT_CLOCK);
+                if (IS_ERR(psCLK))
+                {
+                        PVR_DPF((PVR_DBG_ERROR, "EnableSsystemClocks: Couldn't get Core Clock"));
+                        return PVRSRV_ERROR_UNABLE_TO_GET_PARENT_CLOCK;
+                }
+                psSysSpecData->psCORE_CK = psCLK;
+
+
+                psCLK = clk_get(NULL, "sgx_fck");
                 if (IS_ERR(psCLK))
                 {
                         PVR_DPF((PVR_DBG_ERROR, "EnableSsystemClocks: Couldn't get SGX Functional Clock"));
                         return PVRSRV_ERROR_UNABLE_TO_GET_CLOCK;
                 }
                 psSysSpecData->psSGX_FCK = psCLK;
-#endif
 
+		psCLK = clk_get(NULL, "sgx_ick");
+                if (IS_ERR(psCLK))
+                {
+                        PVR_DPF((PVR_DBG_ERROR, "EnableSystemClocks: Couldn't get SGX Interface Clock"));
+                        return PVRSRV_ERROR_UNABLE_TO_GET_CLOCK;
+                }
+                psSysSpecData->psSGX_ICK = psCLK;
+
+		res = clk_set_parent(psSysSpecData->psSGX_FCK, psSysSpecData->psCORE_CK);
+                if (res < 0)
+                {
+                        PVR_DPF((PVR_DBG_ERROR, "EnableSystemClocks: Couldn't set SGX parent clock (%d)", res));
+                        return PVRSRV_ERROR_UNABLE_TO_GET_PARENT_CLOCK;
+                }
+
+
+                psSysSpecData->bSysClocksOneTimeInit = IMG_TRUE;
+
+#endif
 	}
 
 	return AcquireGPTimer(psSysSpecData);

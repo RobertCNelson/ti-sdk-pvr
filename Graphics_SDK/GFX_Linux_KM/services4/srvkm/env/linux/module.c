@@ -84,6 +84,13 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <linux/module.h>
 #include <linux/fs.h>
 #include <linux/proc_fs.h>
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,8,0))
+#include <linux/of.h>
+#endif
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,11,0))
+#include <linux/reset.h>
+#include <linux/io.h>
+#endif
 
 #if defined(SUPPORT_DRI_DRM)
 #include <drm/drmP.h>
@@ -296,10 +303,24 @@ static struct platform_device_id powervr_id_table[] __devinitdata = {
 };
 #endif
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,8,0))
+static const struct of_device_id omap_sgx_of_match[] = {
+	{
+		.compatible = "ti,sgx",
+	},
+	{},
+};
+MODULE_DEVICE_TABLE(of, omap_sgx_of_match);
+#endif
+
+
 static LDM_DRV powervr_driver = {
 #if defined(PVR_LDM_PLATFORM_MODULE)
 	.driver = {
 		.name		= DRVNAME,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,8,0))
+		.of_match_table = of_match_ptr(omap_sgx_of_match),
+#endif
 	},
 #endif
 #if defined(PVR_LDM_PCI_MODULE)
@@ -321,6 +342,11 @@ static LDM_DRV powervr_driver = {
 };
 
 LDM_DEV *gpsPVRLDMDev;
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,11,0))
+struct reset_control *rstc;
+bool already_deasserted = false;
+#endif
 
 #if defined(MODULE) && defined(PVR_LDM_PLATFORM_MODULE) && \
 	!defined(PVR_USE_PRE_REGISTERED_PLATFORM_DEV)
@@ -362,8 +388,37 @@ static int __devinit PVRSRVDriverProbe(LDM_DEV *pDevice, const struct pci_device
 #endif
 {
 	SYS_DATA *psSysData;
-
+	int ret;
 	PVR_TRACE(("PVRSRVDriverProbe(pDevice=%p)", pDevice));
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,11,0))
+	rstc = reset_control_get(&pDevice->dev, NULL);
+
+	if (IS_ERR(rstc))
+	{
+		dev_err(&pDevice->dev, "%s: error: reset_control_get\n", __func__);
+		return PTR_ERR(rstc);
+	}
+
+	ret = reset_control_clear_reset(rstc);
+
+	if (ret < 0)
+	{
+		dev_err(&pDevice->dev, "%s: error: reset_control_clear_reset\n", __func__);
+		return ret;
+	}
+
+	ret = reset_control_deassert(rstc);
+
+	if (ret == -EEXIST)
+	{
+		already_deasserted = true;
+	}
+	else if (ret < 0)
+	{
+		dev_err(&pDevice->dev, "%s: error: reset_control_deassert\n", __func__);
+		return ret;
+	}
+#endif
 
 #if 0   /* INTEGRATION_POINT */
 	/* Some systems require device-specific system initialisation.
@@ -491,7 +546,7 @@ PVR_MOD_STATIC void PVRSRVDriverShutdown(LDM_DEV *pDevice)
 {
 	PVR_TRACE(("PVRSRVDriverShutdown(pDevice=%p)", pDevice));
 
-	LinuxLockMutex(&gsPMMutex);
+	LinuxLockMutexNested(&gsPMMutex, PVRSRV_LOCK_CLASS_POWER);
 
 	if (!bDriverIsShutdown && !bDriverIsSuspended)
 	{
@@ -557,7 +612,7 @@ PVR_MOD_STATIC int PVRSRVDriverSuspend(LDM_DEV *pDevice, pm_message_t state)
 #if !(defined(DEBUG) && defined(PVR_MANUAL_POWER_CONTROL) && !defined(SUPPORT_DRI_DRM))
 	PVR_TRACE(( "PVRSRVDriverSuspend(pDevice=%p)", pDevice));
 
-	LinuxLockMutex(&gsPMMutex);
+	LinuxLockMutexNested(&gsPMMutex, PVRSRV_LOCK_CLASS_POWER);
 
 	if (!bDriverIsSuspended && !bDriverIsShutdown)
 	{
@@ -614,7 +669,7 @@ PVR_MOD_STATIC int PVRSRVDriverResume(LDM_DEV *pDevice)
 #if !(defined(DEBUG) && defined(PVR_MANUAL_POWER_CONTROL) && !defined(SUPPORT_DRI_DRM))
 	PVR_TRACE(("PVRSRVDriverResume(pDevice=%p)", pDevice));
 
-	LinuxLockMutex(&gsPMMutex);
+	LinuxLockMutexNested(&gsPMMutex, PVRSRV_LOCK_CLASS_POWER);
 
 	if (bDriverIsSuspended && !bDriverIsShutdown)
 	{

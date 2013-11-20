@@ -65,7 +65,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #endif /* (LINUX_VERSION_CODE > KERNEL_VERSION(2,6,26)) */
 
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,8,0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,35))
 #if !defined(LDM_PLATFORM)
 #error "LDM_PLATFORM must be set"
 #endif
@@ -74,7 +74,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #endif
 
 #if ((defined(DEBUG) || defined(TIMING)) && \
-    (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32))) && \
+    (LINUX_VERSION_CODE == KERNEL_VERSION(2,6,34))) && \
     !defined(PVR_NO_OMAP_TIMER)
 /*
  * We need to explicitly enable the GPTIMER11 clocks, or we'll get an
@@ -84,30 +84,26 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #endif
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,35))
-//#include <plat/gpu.h>
+#include <plat/gpu.h>
 #if !defined(PVR_NO_OMAP_TIMER)
-//#define	PVR_OMAP_USE_DM_TIMER_API
-//#include <plat/dmtimer.h>
+#define	PVR_OMAP_USE_DM_TIMER_API
+#include <plat/dmtimer.h>
 #endif
 #endif
 
 #if !defined(PVR_NO_OMAP_TIMER)
-//#define PVR_OMAP_TIMER_BASE_IN_SYS_SPEC_DATA
+#define PVR_OMAP_TIMER_BASE_IN_SYS_SPEC_DATA
 #endif
 #endif /* defined(__linux__) */
 
 #if !defined(NO_HARDWARE) && \
-     defined(SYS_USING_INTERRUPTS) && \
-     defined(SGX540)
+     defined(SYS_USING_INTERRUPTS)
 #define SGX_OCP_REGS_ENABLED
 #endif
 
 #if defined(__linux__)
 #if defined(SGX_OCP_REGS_ENABLED)
-/* FIXME: Temporary workaround for OMAP4470 and active power off in 4430 */
-#if !defined(SGX544) && defined(SUPPORT_ACTIVE_POWER_MANAGEMENT)
-//#define SGX_OCP_NO_INT_BYPASS
-#endif
+#define SGX_OCP_NO_INT_BYPASS
 #endif
 #endif
 
@@ -181,10 +177,6 @@ typedef struct _SYS_SPECIFIC_DATA_TAG_
 	atomic_t	sNotifyLockCPU;
 	IMG_BOOL	bCallVDD2PostFunc;
 #endif
-        struct clk      *psCORE_CK;
-	struct clk      *psSGX_FCK;
-        struct clk      *psSGX_ICK;
-
 #if defined(DEBUG) || defined(TIMING)
 	struct clk	*psGPT11_FCK;
 	struct clk	*psGPT11_ICK;

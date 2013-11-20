@@ -110,7 +110,7 @@ extern struct ion_device *omap_ion_device;
 #define	OMAPLFB_VSYNC_SETTLE_COUNT	5
 
 //#define	OMAPLFB_MAX_NUM_DEVICES		FB_MAX
-#define	OMAPLFB_MAX_NUM_DEVICES		1
+#define OMAPLFB_MAX_NUM_DEVICES         1
 #if (OMAPLFB_MAX_NUM_DEVICES > FB_MAX)
 #error "OMAPLFB_MAX_NUM_DEVICES must not be greater than FB_MAX"
 #endif
@@ -239,13 +239,16 @@ static PVRSRV_ERROR OpenDCDevice(IMG_UINT32 uiPVRDevID,
 	OMAPLFB_DEVINFO *psDevInfo;
 	OMAPLFB_ERROR eError;
 	unsigned uiMaxFBDevIDPlusOne;
-	unsigned i;
 
+	unsigned i;
 	if (!try_module_get(THIS_MODULE))
 	{
 		return PVRSRV_ERROR_UNABLE_TO_OPEN_DC_DEVICE;
 	}
+
 	uiMaxFBDevIDPlusOne = OMAPLFBMaxFBDevIDPlusOne();
+
+
 
 	for (i = 0; i < uiMaxFBDevIDPlusOne; i++)
 	{
@@ -1612,6 +1615,7 @@ static OMAPLFB_DEVINFO *OMAPLFBInitDev(unsigned uiFBDevID)
 		goto ErrorFreeDevInfo;
 	}
 #endif /* defined(CONFIG_ION_OMAP) */
+
 #ifdef FBDEV_PRESENT
 	/* Save private fbdev information structure in the dev. info. */
 	if(OMAPLFBInitFBDev(psDevInfo) != OMAPLFB_OK)
@@ -1666,7 +1670,6 @@ psDevInfo->sSystemBuffer.sCPUVAddr = 0x100;
                 psDevInfo->sFBInfo.ulFBSize     =  8388608;
                 psDevInfo->sFBInfo.ulBufferSize = 600*3200;
 #endif
-
 
 #if defined(CONFIG_DSSCOMP) && defined(SUPPORT_PVRSRV_GET_DC_SYSTEM_BUFFER)
 	OMAPLFBFlip(psDevInfo, &psDevInfo->sSystemBuffer);
@@ -1835,7 +1838,6 @@ static OMAPLFB_BOOL OMAPLFBDeInitDev(OMAPLFB_DEVINFO *psDevInfo)
 #ifdef FBDEV_PRESENT
 	OMAPLFBDeInitFBDev(psDevInfo);
 #endif
-
 #if defined(CONFIG_ION_OMAP)
 	ion_client_destroy(psDevInfo->psIONClient);
 #endif

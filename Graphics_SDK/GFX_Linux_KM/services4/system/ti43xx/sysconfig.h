@@ -1,6 +1,7 @@
 /*************************************************************************/ /*!
-@Title          Linux mutex interface
+@Title          System Description Header
 @Copyright      Copyright (c) Imagination Technologies Ltd. All Rights Reserved
+@Description    This header provides system-specific declarations and macros
 @License        Dual MIT/GPLv2
 
 The contents of this file are subject to the MIT license as set out below.
@@ -39,61 +40,70 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */ /**************************************************************************/
 
+#if !defined(__SOCCONFIG_H__)
+#define __SOCCONFIG_H__
 
-#ifndef __INCLUDED_LINUX_MUTEX_H_
-#define __INCLUDED_LINUX_MUTEX_H_
+#define VS_PRODUCT_NAME	"TI43xx"
 
-#include <linux/version.h>
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,15))
-#include <linux/mutex.h>
+#define SYS_SGX_HWRECOVERY_TIMEOUT_FREQ		(100)	// 10ms (100hz)
+#define SYS_SGX_PDS_TIMER_FREQ				(1000)	// 1ms (1000hz)
+
+/* Allow the AP latency to be overridden in the build config */
+#if !defined(SYS_SGX_ACTIVE_POWER_LATENCY_MS)
+#define SYS_SGX_ACTIVE_POWER_LATENCY_MS		(2)
+#endif
+
+
+#define SYS_TI43xx_SGX_REGS_SYS_PHYS_BASE  0x56000000
+#define SYS_TI43xx_SGX_REGS_SIZE           0x1000000
+
+#define SYS_TI43xx_SGX_IRQ				 37 /* OMAP4 IRQ's are offset by 32 */
+
+#define SYS_OMAP_DSS_REGS_SYS_PHYS_BASE  0x58000000
+#define SYS_OMAP_DSS_REGS_SIZE           0x7000
+
+#define SYS_OMAP_DSS_HDMI_INTERRUPT_STATUS_REG 0x6028
+#define SYS_OMAP_DSS_HDMI_INTERRUPT_ENABLE_REG 0x602c
+
+#define SYS_OMAP_DSS_HDMI_INTERRUPT_VSYNC_ENABLE_MASK 0x10000
+#define SYS_OMAP_DSS_HDMI_INTERRUPT_VSYNC_STATUS_MASK 0x10000
+
+#define SYS_OMAP_DSS_LCD_INTERRUPT_STATUS_REG 0x1018
+#define SYS_OMAP_DSS_LCD_INTERRUPT_ENABLE_REG 0x101c
+
+#define SYS_OMAP_DSS_LCD_INTERRUPT_VSYNC_ENABLE_MASK 0x40002
+#define SYS_OMAP_DSS_LCD_INTERRUPT_VSYNC_STATUS_MASK 0x40002
+
+
+#define SYS_TI43xx_GP7TIMER_ENABLE_SYS_PHYS_BASE      0x4804A038
+#define SYS_TI43xx_GP7TIMER_REGS_SYS_PHYS_BASE        0x4804A03C
+#define SYS_TI43xx_GP7TIMER_TSICR_SYS_PHYS_BASE       0x4804A054
+
+
+
+/* Interrupt bits */
+#define DEVICE_SGX_INTERRUPT		(1<<0)
+#define DEVICE_MSVDX_INTERRUPT		(1<<1)
+#define DEVICE_DISP_INTERRUPT		(1<<2)
+
+#if 0
+#if defined(__linux__)
+/*
+ * Recent OMAP4 kernels register SGX as platform device "omap_gpu".
+ * This device must be used with the Linux power management calls
+ * in sysutils_linux.c, in order for SGX to be powered on.
+ */
+#if defined(PVR_LDM_PLATFORM_PRE_REGISTERED_DEV)
+#define	SYS_SGX_DEV_NAME	PVR_LDM_PLATFORM_PRE_REGISTERED_DEV
 #else
-#include <asm/semaphore.h>
+#define	SYS_SGX_DEV_NAME	"omap_gpu"
+#endif	/* defined(PVR_LDM_PLATFORM_PRE_REGISTERED_DEV) */
+#endif	/* defined(__linux__) */
 #endif
 
+/*****************************************************************************
+ * system specific data structures
+ *****************************************************************************/
 
-
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,15))
-
-typedef struct mutex PVRSRV_LINUX_MUTEX;
-
-#else /* (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,15)) */
-
-
-typedef struct {
-    struct semaphore sSemaphore;
-    /* since Linux's struct semaphore is intended to be
-     * opaque we don't poke inside for the count and
-     * instead we track it outselves. (So we can implement
-     * LinuxIsLockedMutex)
-     */
-    atomic_t Count;
-}PVRSRV_LINUX_MUTEX;
-
-#endif
-
-enum PVRSRV_MUTEX_LOCK_CLASS
-{
-	PVRSRV_LOCK_CLASS_POWER,
-	PVRSRV_LOCK_CLASS_BRIDGE,
-	PVRSRV_LOCK_CLASS_MMAP,
-	PVRSRV_LOCK_CLASS_MM_DEBUG,
-	PVRSRV_LOCK_CLASS_PVR_DEBUG,
-};
-
-extern IMG_VOID LinuxInitMutex(PVRSRV_LINUX_MUTEX *psPVRSRVMutex);
-
-extern IMG_VOID LinuxLockMutex(PVRSRV_LINUX_MUTEX *psPVRSRVMutex);
-
-extern IMG_VOID LinuxLockMutexNested(PVRSRV_LINUX_MUTEX *psPVRSRVMutex, unsigned int uiLockClass);
-
-extern PVRSRV_ERROR LinuxLockMutexInterruptible(PVRSRV_LINUX_MUTEX *psPVRSRVMutex);
-
-extern IMG_INT32 LinuxTryLockMutex(PVRSRV_LINUX_MUTEX *psPVRSRVMutex);
-
-extern IMG_VOID LinuxUnLockMutex(PVRSRV_LINUX_MUTEX *psPVRSRVMutex);
-
-extern IMG_BOOL LinuxIsLockedMutex(PVRSRV_LINUX_MUTEX *psPVRSRVMutex);
-
-
-#endif /* __INCLUDED_LINUX_MUTEX_H_ */
+#endif	/* __SYSCONFIG_H__ */

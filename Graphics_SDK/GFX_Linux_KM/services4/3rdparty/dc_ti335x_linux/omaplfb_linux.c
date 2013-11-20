@@ -353,6 +353,14 @@ void OMAPLFBFlip(OMAPLFB_DEVINFO *psDevInfo, OMAPLFB_BUFFER *psBuffer)
 	struct fb_var_screeninfo sFBVar;
 	int res;
 
+	if (!lock_fb_info(psDevInfo->psLINFBInfo))
+	{
+		DEBUG_PRINTK((KERN_WARNING DRIVER_PREFIX
+			": %s: Device %u: Couldn't lock FB info\n", __FUNCTION__,  psDevInfo->uiFBDevID));
+		return;
+	}
+
+
 	OMAPLFB_CONSOLE_LOCK();
 
 	sFBVar = psDevInfo->psLINFBInfo->var;
@@ -471,6 +479,7 @@ void OMAPLFBFlip(OMAPLFB_DEVINFO *psDevInfo, OMAPLFB_BUFFER *psBuffer)
 #endif /* defined(CONFIG_DSSCOMP) */
 
 	OMAPLFB_CONSOLE_UNLOCK();
+	unlock_fb_info(psDevInfo->psLINFBInfo);
 }
 
 /* Newer kernels don't have any update mode capability */
@@ -826,7 +835,6 @@ OMAPLFB_BOOL OMAPLFBWaitForVSync(OMAPLFB_DEVINFO *psDevInfo)
 #endif
 #endif	/* defined(PVR_OMAPLFB_DRM_FB) */
 #if FBDEV_PRESENT
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,7,0))
       int r;
 
       void grpx_irq_wait_handler(void *data)
@@ -854,7 +862,6 @@ OMAPLFB_BOOL OMAPLFBWaitForVSync(OMAPLFB_DEVINFO *psDevInfo)
           printk (KERN_WARNING DRIVER_PREFIX ": Failed to un-register for vsync call back\n");
           return OMAPLFB_FALSE;
       }
-#endif
 #endif
       return OMAPLFB_TRUE;
 
@@ -969,14 +976,35 @@ static int OMAPLFBFrameBufferEvents(struct notifier_block *psNotif,
 }
 
 /* Unblank the screen */
-OMAPLFB_ERROR OMAPLFBUnblankDisplay(OMAPLFB_DEVINFO *psDevInfo)
+/*
+ * Blank or Unblank the screen. To be called where the unblank is being done
+ * in user context.
+ */
+static OMAPLFB_ERROR OMAPLFBBlankOrUnblankDisplay(OMAPLFB_DEVINFO *psDevInfo, IMG_BOOL bBlank)
 {
 #ifdef FBDEV_PRESENT
 	int res;
+	if (!lock_fb_info(psDevInfo->psLINFBInfo))
+	{
+		printk(KERN_ERR DRIVER_PREFIX
+			": %s: Device %u: Couldn't lock FB info\n", __FUNCTION__,  psDevInfo->uiFBDevID);
+		return (OMAPLFB_ERROR_GENERIC);
+	}
+
+	/*
+	* FBINFO_MISC_USEREVENT is set to avoid a deadlock resulting from
+	* fb_blank being called recursively due from within the fb_blank event
+	* notification.
+	*/
+
 
 	OMAPLFB_CONSOLE_LOCK();
-	res = fb_blank(psDevInfo->psLINFBInfo, 0);
+	psDevInfo->psLINFBInfo->flags |= FBINFO_MISC_USEREVENT;
+	res = fb_blank(psDevInfo->psLINFBInfo, bBlank ? 1 : 0);
+	psDevInfo->psLINFBInfo->flags &= ~FBINFO_MISC_USEREVENT;
+
 	OMAPLFB_CONSOLE_UNLOCK();
+	unlock_fb_info(psDevInfo->psLINFBInfo);
 	if (res != 0 && res != -EINVAL)
 	{
 		printk(KERN_ERR DRIVER_PREFIX
@@ -987,10 +1015,26 @@ OMAPLFB_ERROR OMAPLFBUnblankDisplay(OMAPLFB_DEVINFO *psDevInfo)
 	return (OMAPLFB_OK);
 }
 
+/* Unblank the screen */
+OMAPLFB_ERROR OMAPLFBUnblankDisplay(OMAPLFB_DEVINFO *psDevInfo)
+{
+	return OMAPLFBBlankOrUnblankDisplay(psDevInfo, IMG_FALSE);
+}
+
+
+
 #ifdef CONFIG_HAS_EARLYSUSPEND
 
+static void OMAPLFBEarlyUnblankDisplay(OMAPLFB_DEVINFO *psDevInfo)
+{
+	OMAPLFB_CONSOLE_LOCK();
+	fb_blank(psDevInfo->psLINFBInfo, 0);
+	OMAPLFB_CONSOLE_UNLOCK();
+}
+
+
 /* Blank the screen */
-static void OMAPLFBBlankDisplay(OMAPLFB_DEVINFO *psDevInfo)
+static void OMAPLFBEarlyBlankDisplay(OMAPLFB_DEVINFO *psDevInfo)
 {
 	OMAPLFB_CONSOLE_LOCK();
 	fb_blank(psDevInfo->psLINFBInfo, 1);
@@ -1009,7 +1053,7 @@ static void OMAPLFBEarlySuspendHandler(struct early_suspend *h)
 		if (psDevInfo != NULL)
 		{
 			OMAPLFBAtomicBoolSet(&psDevInfo->sEarlySuspendFlag, OMAPLFB_TRUE);
-			OMAPLFBBlankDisplay(psDevInfo);
+			OMAPLFBEarlyBlankDisplay(psDevInfo);
 		}
 	}
 }
@@ -1025,7 +1069,7 @@ static void OMAPLFBEarlyResumeHandler(struct early_suspend *h)
 
 		if (psDevInfo != NULL)
 		{
-			OMAPLFBUnblankDisplay(psDevInfo);
+			OMAPLFBEarlyUnblankDisplay(psDevInfo);
 			OMAPLFBAtomicBoolSet(&psDevInfo->sEarlySuspendFlag, OMAPLFB_FALSE);
 		}
 	}
@@ -1227,9 +1271,20 @@ int PVR_DRM_MAKENAME(DISPLAY_CONTROLLER, _Ioctl)(struct drm_device unref__ *dev,
 				flush_workqueue(psDevInfo->psSwapChain->psWorkQueue);
 			}
 
-			OMAPLFB_CONSOLE_LOCK();
-			ret = fb_blank(psDevInfo->psLINFBInfo, iFBMode);
-			OMAPLFB_CONSOLE_UNLOCK();
+			if (!lock_fb_info(psDevInfo->psLINFBInfo))
+			{
+				ret = -ENODEV;
+			}
+			else
+			{
+				OMAPLFB_CONSOLE_LOCK();
+				psDevInfo->psLINFBInfo->flags |= FBINFO_MISC_USEREVENT;
+				ret = fb_blank(psDevInfo->psLINFBInfo, iFBMode);
+				psDevInfo->psLINFBInfo->flags &= ~FBINFO_MISC_USEREVENT;
+				OMAPLFB_CONSOLE_UNLOCK();
+				unlock_fb_info(psDevInfo->psLINFBInfo);
+			}
+
 
 			OMAPLFBCreateSwapChainUnLock(psDevInfo);
 

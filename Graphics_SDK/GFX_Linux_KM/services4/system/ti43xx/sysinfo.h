@@ -1,6 +1,7 @@
 /*************************************************************************/ /*!
-@Title          Linux mutex interface
+@Title          System Description Header
 @Copyright      Copyright (c) Imagination Technologies Ltd. All Rights Reserved
+@Description    This header provides system-specific declarations and macros
 @License        Dual MIT/GPLv2
 
 The contents of this file are subject to the MIT license as set out below.
@@ -39,61 +40,31 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */ /**************************************************************************/
 
+#if !defined(__SYSINFO_H__)
+#define __SYSINFO_H__
 
-#ifndef __INCLUDED_LINUX_MUTEX_H_
-#define __INCLUDED_LINUX_MUTEX_H_
-
-#include <linux/version.h>
-
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,15))
-#include <linux/mutex.h>
+#if defined(SGX540) && (SGX_CORE_REV == 120)
+#define SYS_SGX_CLOCK_SPEED		307200000
 #else
-#include <asm/semaphore.h>
+#define SYS_SGX_CLOCK_SPEED		200000000
+#endif
+
+/*!< System specific poll/timeout details */
+#if defined(PVR_LINUX_USING_WORKQUEUES)
+/*
+ * The workqueue based 3rd party display driver may be blocked for up
+ * to 500ms waiting for a vsync when the screen goes blank, so we
+ * need to wait longer for the hardware if a flush of the swap chain is
+ * required.
+ */
+#define MAX_HW_TIME_US				(1000000)
+#define WAIT_TRY_COUNT				(20000)
+#else
+#define MAX_HW_TIME_US				(500000)
+#define WAIT_TRY_COUNT				(10000)
 #endif
 
 
+#define SYS_DEVICE_COUNT 15 /* SGX, DISPLAYCLASS (external), BUFFERCLASS (external) */
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,15))
-
-typedef struct mutex PVRSRV_LINUX_MUTEX;
-
-#else /* (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,15)) */
-
-
-typedef struct {
-    struct semaphore sSemaphore;
-    /* since Linux's struct semaphore is intended to be
-     * opaque we don't poke inside for the count and
-     * instead we track it outselves. (So we can implement
-     * LinuxIsLockedMutex)
-     */
-    atomic_t Count;
-}PVRSRV_LINUX_MUTEX;
-
-#endif
-
-enum PVRSRV_MUTEX_LOCK_CLASS
-{
-	PVRSRV_LOCK_CLASS_POWER,
-	PVRSRV_LOCK_CLASS_BRIDGE,
-	PVRSRV_LOCK_CLASS_MMAP,
-	PVRSRV_LOCK_CLASS_MM_DEBUG,
-	PVRSRV_LOCK_CLASS_PVR_DEBUG,
-};
-
-extern IMG_VOID LinuxInitMutex(PVRSRV_LINUX_MUTEX *psPVRSRVMutex);
-
-extern IMG_VOID LinuxLockMutex(PVRSRV_LINUX_MUTEX *psPVRSRVMutex);
-
-extern IMG_VOID LinuxLockMutexNested(PVRSRV_LINUX_MUTEX *psPVRSRVMutex, unsigned int uiLockClass);
-
-extern PVRSRV_ERROR LinuxLockMutexInterruptible(PVRSRV_LINUX_MUTEX *psPVRSRVMutex);
-
-extern IMG_INT32 LinuxTryLockMutex(PVRSRV_LINUX_MUTEX *psPVRSRVMutex);
-
-extern IMG_VOID LinuxUnLockMutex(PVRSRV_LINUX_MUTEX *psPVRSRVMutex);
-
-extern IMG_BOOL LinuxIsLockedMutex(PVRSRV_LINUX_MUTEX *psPVRSRVMutex);
-
-
-#endif /* __INCLUDED_LINUX_MUTEX_H_ */
+#endif	/* __SYSINFO_H__ */
