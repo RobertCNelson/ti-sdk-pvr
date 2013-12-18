@@ -485,7 +485,6 @@ static const struct file_operations sPVRFileOps =
 	PVR_DRM_FOPS_IOCTL = drm_ioctl,
 	.mmap = PVRMMap,
 	.poll = drm_poll,
-	.fasync = drm_fasync,
 };
 #endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(3,3,0)) */
 
@@ -527,7 +526,6 @@ static struct drm_driver sPVRDrmDriver =
 		PVR_DRM_FOPS_IOCTL = drm_ioctl,
 		.mmap = PVRMMap,
 		.poll = drm_poll,
-		.fasync = drm_fasync,
 	},
 #endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(3,3,0)) */
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,39))
