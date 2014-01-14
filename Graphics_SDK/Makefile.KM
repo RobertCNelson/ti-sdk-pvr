@@ -5,9 +5,11 @@ OMAPES=INVALIDVAL
 FBDEV=yes
 SUPPORT_XORG=0
 EGLIMAGE=0
-PM_RUNTIME=0
+PM_RUNTIME=yes
 
-ifeq ($(TI_DEVICE),am335x-evm)
+ifeq ($(TI_DEVICE),am43xx-evm)
+OMAPES=9.x
+else ifeq ($(TI_DEVICE),am335x-evm)
 OMAPES=8.x
 else ifeq ($(TI_DEVICE),am37x-evm)
 OMAPES=5.x
@@ -47,6 +49,13 @@ endif
       GFX_LIB_SRCPATH := $(GFX_REL_ES8_LIB_SRCPATH)
     endif
   endif
+  ifeq ($(OMAPES),9.x)
+    ifeq ($(BUILD),debug)
+      GFX_LIB_SRCPATH := $(GFX_DBG_ES9_LIB_SRCPATH)
+    else
+      GFX_LIB_SRCPATH := $(GFX_REL_ES9_LIB_SRCPATH)
+    endif
+  endif
 
 GFXLIB_INSTALL_INFOFILE=$(GFX_DEMOS_EXECPATH)/gfxinstallinfo.txt
 
@@ -64,9 +73,18 @@ buildkernel:
 
 ifeq ($(SUPPORT_XORG),1)
 	@cp $(KERNEL_INSTALL_DIR)/drivers/gpu/drm/*.c `pwd`/GFX_Linux_KM/services4/3rdparty/linux_drm/
+	@cp $(KERNEL_INSTALL_DIR)/drivers/base/dma-buf.c `pwd`/GFX_Linux_KM/services4/3rdparty/linux_drm/
 endif
 
 ifeq ($(BUILD),debug)
+  ifeq ($(OMAPES),9.x)
+	@export KERNELDIR=$(KERNEL_INSTALL_DIR) && \
+		export PATH=$(CSTOOL_PATH):$(PATH) && \
+		export CROSS_COMPILE=$(CSTOOL_PREFIX) && \
+		export ARCH=arm && \
+		make -C $(GFX_KERNMOD_SRCPATH) KERNELDIR=$(KERNEL_INSTALL_DIR) BUILD=debug TI_PLATFORM=ti335x clean && \
+		make -C $(GFX_KERNMOD_SRCPATH) KERNELDIR=$(KERNEL_INSTALL_DIR) TI_PLATFORM=ti43xx BUILD=debug
+  else
   ifeq ($(OMAPES),8.x)
 	@export KERNELDIR=$(KERNEL_INSTALL_DIR) && \
 		export PATH=$(CSTOOL_PATH):$(PATH) && \
@@ -99,8 +117,17 @@ ifeq ($(BUILD),debug)
 		make -C $(GFX_KERNMOD_SRCPATH)  KERNELDIR=$(KERNEL_INSTALL_DIR) TI_PLATFORM=omap3 BUILD=debug
     endif
     endif
+    endif
   endif
 else
+  ifeq ($(OMAPES),9.x)
+	@export KERNELDIR=$(KERNEL_INSTALL_DIR) && \
+		export PATH=$(CSTOOL_PATH):$(PATH) && \
+		export CROSS_COMPILE=$(CSTOOL_PREFIX) && \
+		export ARCH=arm && \
+		make -C $(GFX_KERNMOD_SRCPATH) KERNELDIR=$(KERNEL_INSTALL_DIR) TI_PLATFORM=ti43xx clean && \
+		make -C $(GFX_KERNMOD_SRCPATH) KERNELDIR=$(KERNEL_INSTALL_DIR) TI_PLATFORM=ti43xx
+  else
   ifeq ($(OMAPES),8.x)
 	@export KERNELDIR=$(KERNEL_INSTALL_DIR) && \
 		export PATH=$(CSTOOL_PATH):$(PATH) && \
@@ -134,10 +161,18 @@ else
 		make -C $(GFX_KERNMOD_SRCPATH) KERNELDIR=$(KERNEL_INSTALL_DIR) TI_PLATFORM=omap3
       endif
       endif
+      endif
     endif
 endif
 	@echo "copying the sgx kernel modules to appropriate folder..."
 	@cp -rf $(GFX_KERNMOD_SRCPATH)/pvrsrvkm.ko $(GFX_LIB_SRCPATH)/.
+ifeq ($(OMAPES),9.x)
+ifeq ($(SUPPORT_XORG),1)
+	@cp -rf $(GFX_KERNMOD_SRCPATH)/services4/3rdparty/linux_drm/drm.ko $(GFX_LIB_SRCPATH)/.
+else
+	@cp -rf $(GFX_KERNMOD_SRCPATH)/services4/3rdparty/dc_ti43xx_linux/omaplfb.ko $(GFX_LIB_SRCPATH)/.
+endif
+else
 ifeq ($(OMAPES),8.x)
 ifeq ($(SUPPORT_XORG),1)
 	@cp -rf $(GFX_KERNMOD_SRCPATH)/services4/3rdparty/linux_drm/drm.ko $(GFX_LIB_SRCPATH)/.
@@ -156,6 +191,7 @@ ifeq ($(SUPPORT_XORG),1)
 	@cp -rf $(GFX_KERNMOD_SRCPATH)/services4/3rdparty/linux_drm/drm.ko $(GFX_LIB_SRCPATH)/.
 else
 	@cp -rf $(GFX_KERNMOD_SRCPATH)/services4/3rdparty/dc_omapfb3_linux/omaplfb.ko $(GFX_LIB_SRCPATH)/.
+endif
 endif
 endif
 endif
@@ -194,6 +230,13 @@ prepare_km:
 	@echo "debug8.x" > $(GFXLIB_INSTALL_INFOFILE)
     else
 	@echo "release8.x" > $(GFXLIB_INSTALL_INFOFILE)
+    endif
+  endif
+  ifeq ($(OMAPES),9.x)
+    ifeq ($(BUILD),debug)
+	@echo "debug9.x" > $(GFXLIB_INSTALL_INFOFILE)
+    else
+	@echo "release9.x" > $(GFXLIB_INSTALL_INFOFILE)
     endif
   endif
 
@@ -242,6 +285,17 @@ endif
 	@mkdir -p $(EXEC_DIR)
 	@mkdir -p $(GFX_LIBRARY_TARGET_PATH)
 	@echo "copying startup files..."
+  ifeq ($(OMAPES),9.x)
+  ifeq ($(SUPPORT_XORG),1)
+	@cp $(GFX_PKG_TARGETFS_PATH)/43xx_xorg-demo $(TARGETFS_INSTALL_DIR)/etc/init.d/43xx-demo
+	@cp $(GFX_PKG_TARGETFS_PATH)/43xx_xorg-demo $(TARGETFS_INSTALL_DIR)/opt/gfxsdkdemos/43xx-demo
+  else
+	@cp $(GFX_PKG_TARGETFS_PATH)/43xx-demo $(TARGETFS_INSTALL_DIR)/etc/init.d
+	@cp $(GFX_PKG_TARGETFS_PATH)/43xx-demo $(TARGETFS_INSTALL_DIR)/opt/gfxsdkdemos
+  endif
+	@chmod 755 $(TARGETFS_INSTALL_DIR)/etc/init.d/43xx-demo
+	@chmod 755 $(TARGETFS_INSTALL_DIR)/opt/gfxsdkdemos/43xx-demo
+  else
   ifeq ($(OMAPES),8.x)
   ifeq ($(SUPPORT_XORG),1)
 	@cp $(GFX_PKG_TARGETFS_PATH)/335x_xorg-demo $(TARGETFS_INSTALL_DIR)/etc/init.d/335x-demo
@@ -273,6 +327,7 @@ endif
   endif
 	@chmod 755 $(TARGETFS_INSTALL_DIR)/etc/init.d/omap-demo
 	@chmod 755 $(TARGETFS_INSTALL_DIR)/opt/gfxsdkdemos
+  endif
   endif
   endif
   ifeq ($(SUPPORT_XORG),1)
@@ -433,6 +488,39 @@ endif
        endif
     endif
   endif
+  ifeq ($(OMAPES),9.x)
+    ifeq ($(BUILD),release)
+	@cp -rf $(GFX_REL_ES9_LIB_SRCPATH) $(GFX_LIBRARY_TARGET_PATH)/.
+       ifeq ($(EGLIMAGE),1)
+	@cp -rf $(GFX_REL_ES9_LIB_SRCPATH)/libGLESv2_eglimage.so $(GFX_LIBRARY_TARGET_PATH)/gfx_rel_es9.x/libGLESv2.so
+	@cp -rf $(GFX_REL_ES9_LIB_SRCPATH)/libGLES_CM_eglimage.so $(GFX_LIBRARY_TARGET_PATH)/gfx_rel_es9.x/libGLES_CM.so
+	@cp -rf $(GFX_REL_ES9_LIB_SRCPATH)/libIMGegl_eglimage.so $(GFX_LIBRARY_TARGET_PATH)/gfx_rel_es9.x/libIMGegl.so
+	@cp -rf $(GFX_REL_ES9_LIB_SRCPATH)/libEGL_eglimage.so $(GFX_LIBRARY_TARGET_PATH)/gfx_rel_es9.x/libEGL.so
+	@cp -rf $(GFX_REL_ES9_LIB_SRCPATH)/libglslcompiler_eglimage.so $(GFX_LIBRARY_TARGET_PATH)/gfx_rel_es9.x/libglslcompiler.so
+       endif
+       ifeq ($(SUPPORT_XORG),1)
+	@cp -rf $(GFX_REL_ES9_LIB_SRCPATH)/libsrv_um_dri.so $(GFX_LIBRARY_TARGET_PATH)/gfx_rel_es9.x/libsrv_um.so
+	@cp -rf $(GFX_REL_ES9_LIB_SRCPATH)/rc_dri.pvr $(GFX_LIBRARY_TARGET_PATH)/gfx_rel_es9.x/rc.pvr
+	@cp -rf $(GFX_REL_ES9_LIB_SRCPATH)/install_dri.sh $(GFX_LIBRARY_TARGET_PATH)/gfx_rel_es9.x/install.sh
+	@cp -rf $(GFX_REL_ES9_LIB_SRCPATH)/xeglinfo $(GFX_LIBRARY_TARGET_PATH)/gfx_rel_es9.x/eglinfo
+       endif
+    else
+	@cp -rf $(GFX_DBG_ES9_LIB_SRCPATH) $(GFX_LIBRARY_TARGET_PATH)/.
+       ifeq ($(EGLIMAGE),1)
+	@cp -rf $(GFX_DBG_ES9_LIB_SRCPATH)/libGLESv2_eglimage.so $(GFX_LIBRARY_TARGET_PATH)/gfx_dbg_es9.x/libGLESv2.so
+	@cp -rf $(GFX_DBG_ES9_LIB_SRCPATH)/libGLES_CM_eglimage.so $(GFX_LIBRARY_TARGET_PATH)/gfx_dbg_es9.x/libGLES_CM.so
+	@cp -rf $(GFX_DBG_ES9_LIB_SRCPATH)/libIMGegl_eglimage.so $(GFX_LIBRARY_TARGET_PATH)/gfx_dbg_es9.x/libIMGegl.so
+	@cp -rf $(GFX_DBG_ES9_LIB_SRCPATH)/libEGL_eglimage.so $(GFX_LIBRARY_TARGET_PATH)/gfx_dbg_es9.x/libEGL.so
+	@cp -rf $(GFX_DBG_ES9_LIB_SRCPATH)/libglslcompiler_eglimage.so $(GFX_LIBRARY_TARGET_PATH)/gfx_dbg_es9.x/libglslcompiler.so
+       endif
+       ifeq ($(SUPPORT_XORG),1)
+	@cp -rf $(GFX_DBG_ES9_LIB_SRCPATH)/libsrv_um_dri.so $(GFX_LIBRARY_TARGET_PATH)/gfx_dbg_es9.x/libsrv_um.so
+	@cp -rf $(GFX_DBG_ES9_LIB_SRCPATH)/rc_dri.pvr $(GFX_LIBRARY_TARGET_PATH)/gfx_dbg_es9.x/rc.pvr
+	@cp -rf $(GFX_DBG_ES9_LIB_SRCPATH)/install_dri.sh $(GFX_LIBRARY_TARGET_PATH)/gfx_dbg_es9.x/install.sh
+	@cp -rf $(GFX_DBG_ES9_LIB_SRCPATH)/xeglinfo $(GFX_LIBRARY_TARGET_PATH)/gfx_dbg_es9.x/eglinfo
+       endif
+    endif
+  endif
 	@echo "copying install information to target file system..."
 	@cd $(GFX_DEMOS_EXECPATH) && \
 		cp -rf * $(EXEC_DIR)/.
@@ -441,10 +529,9 @@ endif
 
 help_km:
 	@echo ""
-	@echo "Usage (for build): make BUILD={debug | release} OMAPES={ 3.x | 5.x | 6.x | 8.x} FBDEV={yes | no} SUPPORT_XORG={1 | 0} PM_RUNTIME={1 |0)"
-	@echo "PM_RUNTIME option valid/available for OMAPES=8.x(AM335x) only"
-	@echo "Specifying OMAPES is mandatory. BUILD=release by default FBDEV=YES,SUPPORT_XORG=0 and PM_RUNTIME=0 by default"
-	@echo "Usage (for install): make BUILD=(debug | release} OMAPES={ 3.x | 5.x| 6.x | 8.x} install"
+	@echo "Usage (for build): make BUILD={debug | release} OMAPES={ 3.x | 5.x | 6.x | 8.x | 9.x} FBDEV={yes | no} "
+	@echo "Specifying OMAPES is mandatory. BUILD=release by default FBDEV=YES by default"
+	@echo "Usage (for install): make BUILD=(debug | release} OMAPES={ 3.x | 5.x| 6.x | 8.x | 9.x} install"
 	@echo "See online Graphics Getting Started Guide for further details."
 	@echo ""
 

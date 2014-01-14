@@ -444,6 +444,17 @@ static int __devinit PVRSRVDriverProbe(LDM_DEV *pDevice, const struct pci_device
 			return -ENODEV;
 		}
 	}
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,11,0))
+        if (!already_deasserted)
+        {
+                ret = reset_control_is_reset(rstc);
+                if (ret <= 0)
+                {
+                        PVR_DPF((PVR_DBG_MESSAGE, "reset control reset"));
+                }
+        }
+        reset_control_put(rstc);
+#endif
 
 	return PVRSRVIONClientCreate();
 }
