@@ -557,7 +557,7 @@ PVR_MOD_STATIC void PVRSRVDriverShutdown(LDM_DEV *pDevice)
 {
 	PVR_TRACE(("PVRSRVDriverShutdown(pDevice=%p)", pDevice));
 
-	LinuxLockMutexNested(&gsPMMutex, PVRSRV_LOCK_CLASS_POWER);
+//	LinuxLockMutexNested(&gsPMMutex, PVRSRV_LOCK_CLASS_POWER);
 
 	if (!bDriverIsShutdown && !bDriverIsSuspended)
 	{
@@ -566,7 +566,7 @@ PVR_MOD_STATIC void PVRSRVDriverShutdown(LDM_DEV *pDevice)
 		 * processes trying to use the driver after it has been
 		 * shutdown.
 		 */
-		LinuxLockMutexNested(&gPVRSRVLock, PVRSRV_LOCK_CLASS_BRIDGE);
+//		LinuxLockMutexNested(&gPVRSRVLock, PVRSRV_LOCK_CLASS_BRIDGE);
 
 		(void) PVRSRVSetPowerStateKM(PVRSRV_SYS_POWER_STATE_D3);
 	}
@@ -574,7 +574,7 @@ PVR_MOD_STATIC void PVRSRVDriverShutdown(LDM_DEV *pDevice)
 	bDriverIsShutdown = IMG_TRUE;
 
 	/* The bridge mutex is held on exit */
-	LinuxUnLockMutex(&gsPMMutex);
+//	LinuxUnLockMutex(&gsPMMutex);
 }
 
 #endif /* defined(PVR_LDM_MODULE) || defined(PVR_DRI_DRM_PLATFORM_DEV) */
@@ -623,11 +623,11 @@ PVR_MOD_STATIC int PVRSRVDriverSuspend(LDM_DEV *pDevice, pm_message_t state)
 #if !(defined(DEBUG) && defined(PVR_MANUAL_POWER_CONTROL) && !defined(SUPPORT_DRI_DRM))
 	PVR_TRACE(( "PVRSRVDriverSuspend(pDevice=%p)", pDevice));
 
-	LinuxLockMutexNested(&gsPMMutex, PVRSRV_LOCK_CLASS_POWER);
+//	LinuxLockMutexNested(&gsPMMutex, PVRSRV_LOCK_CLASS_POWER);
 
 	if (!bDriverIsSuspended && !bDriverIsShutdown)
 	{
-		LinuxLockMutexNested(&gPVRSRVLock, PVRSRV_LOCK_CLASS_BRIDGE);
+//		LinuxLockMutexNested(&gPVRSRVLock, PVRSRV_LOCK_CLASS_BRIDGE);
 
 		if (PVRSRVSetPowerStateKM(PVRSRV_SYS_POWER_STATE_D3) == PVRSRV_OK)
 		{
@@ -636,12 +636,12 @@ PVR_MOD_STATIC int PVRSRVDriverSuspend(LDM_DEV *pDevice, pm_message_t state)
 		}
 		else
 		{
-			LinuxUnLockMutex(&gPVRSRVLock);
+//			LinuxUnLockMutex(&gPVRSRVLock);
 			res = -EINVAL;
 		}
 	}
 
-	LinuxUnLockMutex(&gsPMMutex);
+//	LinuxUnLockMutex(&gsPMMutex);
 #endif
 	return res;
 }
@@ -680,14 +680,14 @@ PVR_MOD_STATIC int PVRSRVDriverResume(LDM_DEV *pDevice)
 #if !(defined(DEBUG) && defined(PVR_MANUAL_POWER_CONTROL) && !defined(SUPPORT_DRI_DRM))
 	PVR_TRACE(("PVRSRVDriverResume(pDevice=%p)", pDevice));
 
-	LinuxLockMutexNested(&gsPMMutex, PVRSRV_LOCK_CLASS_POWER);
+//	LinuxLockMutexNested(&gsPMMutex, PVRSRV_LOCK_CLASS_POWER);
 
 	if (bDriverIsSuspended && !bDriverIsShutdown)
 	{
 		if (PVRSRVSetPowerStateKM(PVRSRV_SYS_POWER_STATE_D0) == PVRSRV_OK)
 		{
 			bDriverIsSuspended = IMG_FALSE;
-			LinuxUnLockMutex(&gPVRSRVLock);
+//			LinuxUnLockMutex(&gPVRSRVLock);
 		}
 		else
 		{
@@ -696,7 +696,7 @@ PVR_MOD_STATIC int PVRSRVDriverResume(LDM_DEV *pDevice)
 		}
 	}
 
-	LinuxUnLockMutex(&gsPMMutex);
+//	LinuxUnLockMutex(&gsPMMutex);
 #endif
 	return res;
 }
