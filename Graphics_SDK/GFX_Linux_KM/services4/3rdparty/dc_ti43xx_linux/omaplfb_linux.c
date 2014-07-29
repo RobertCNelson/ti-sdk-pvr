@@ -948,10 +948,13 @@ static OMAPLFB_ERROR OMAPLFBBlankOrUnblankDisplay(OMAPLFB_DEVINFO *psDevInfo, IM
 {
 #ifdef FBDEV_PRESENT
 	int res;
+
+	OMAPLFB_CONSOLE_LOCK();
 	if (!lock_fb_info(psDevInfo->psLINFBInfo))
 	{
 		printk(KERN_ERR DRIVER_PREFIX
 		": %s: Device %u: Couldn't lock FB info\n", __FUNCTION__,  psDevInfo->uiFBDevID);
+		OMAPLFB_CONSOLE_UNLOCK();
 		return (OMAPLFB_ERROR_GENERIC);
 	}
 
@@ -961,13 +964,13 @@ static OMAPLFB_ERROR OMAPLFBBlankOrUnblankDisplay(OMAPLFB_DEVINFO *psDevInfo, IM
 	* notification.
 	*/
 
-	OMAPLFB_CONSOLE_LOCK();
 	psDevInfo->psLINFBInfo->flags |= FBINFO_MISC_USEREVENT;
 	res = fb_blank(psDevInfo->psLINFBInfo, bBlank ? 1 : 0);
 	psDevInfo->psLINFBInfo->flags &= ~FBINFO_MISC_USEREVENT;
 
-	OMAPLFB_CONSOLE_UNLOCK();
 	unlock_fb_info(psDevInfo->psLINFBInfo);
+	OMAPLFB_CONSOLE_UNLOCK();
+
 	if (res != 0 && res != -EINVAL)
 	{
 		printk(KERN_ERR DRIVER_PREFIX
