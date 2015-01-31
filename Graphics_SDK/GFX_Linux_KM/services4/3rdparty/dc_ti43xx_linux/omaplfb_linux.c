@@ -92,6 +92,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <linux/omapfb.h>
 #include <linux/mutex.h>
 
+#if defined(CONFIG_DRM_OMAP) && (LINUX_VERSION_CODE > KERNEL_VERSION(3,14,0))
+#include "drm/drmP.h"
+#include "drm/drm_crtc.h"
+#include "drm/drm_fb_helper.h"
+#endif
+
 #if defined(PVR_OMAPLFB_DRM_FB)
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(3,0,0))
 #include <plat/display.h>
@@ -348,15 +354,16 @@ void OMAPLFBFlip(OMAPLFB_DEVINFO *psDevInfo, OMAPLFB_BUFFER *psBuffer)
 	struct fb_var_screeninfo sFBVar;
 	int res;
 
+	OMAPLFB_CONSOLE_LOCK();
 	if (!lock_fb_info(psDevInfo->psLINFBInfo))
 	{
 		DEBUG_PRINTK((KERN_WARNING DRIVER_PREFIX
 		": %s: Device %u: Couldn't lock FB info\n", __FUNCTION__,  psDevInfo->uiFBDevID));
+		OMAPLFB_CONSOLE_UNLOCK();
 		return;
 	}
 
 
-	OMAPLFB_CONSOLE_LOCK();
 
 	sFBVar = psDevInfo->psLINFBInfo->var;
 
@@ -473,8 +480,8 @@ void OMAPLFBFlip(OMAPLFB_DEVINFO *psDevInfo, OMAPLFB_BUFFER *psBuffer)
 	}
 #endif /* defined(CONFIG_DSSCOMP) */
 
-	OMAPLFB_CONSOLE_UNLOCK();
 	unlock_fb_info(psDevInfo->psLINFBInfo);
+	OMAPLFB_CONSOLE_UNLOCK();
 }
 
 /* Newer kernels don't have any update mode capability */
@@ -800,6 +807,17 @@ void OMAPLFBPrintInfo(OMAPLFB_DEVINFO *psDevInfo)
 }
 #endif	/* defined(DEBUG) */
 
+#if (defined(CONFIG_DRM_OMAP) && (LINUX_VERSION_CODE > KERNEL_VERSION(3,14,0)))
+void omap_wait_vblank(struct fb_info *fbi)
+{
+	struct drm_fb_helper *helper = fbi->par;
+	struct drm_device *dev = helper->dev;
+
+	/* crtc on am437x is always 0 */
+	drm_wait_one_vblank(dev, 0);
+}
+#endif
+
 /* Wait for VSync */
 OMAPLFB_BOOL OMAPLFBWaitForVSync(OMAPLFB_DEVINFO *psDevInfo)
 {
@@ -815,6 +833,9 @@ OMAPLFB_BOOL OMAPLFBWaitForVSync(OMAPLFB_DEVINFO *psDevInfo)
 	return OMAPLFB_TRUE;
 #else	/* defined(PVR_OMAPLFB_DRM_FB) */
 #if FBDEV_PRESENT
+#if defined(CONFIG_DRM_OMAP) && (LINUX_VERSION_CODE > KERNEL_VERSION(3,14,0))
+	omap_wait_vblank(psDevInfo->psLINFBInfo);
+#else
 	struct omapfb_info *ofbi = FB2OFB(psDevInfo->psLINFBInfo);
 	struct omapfb2_device *psDSSDev = ofbi->fbdev;
 	OMAP_DSS_MANAGER(psDSSMan, psDSSDev);
@@ -828,6 +849,7 @@ OMAPLFB_BOOL OMAPLFBWaitForVSync(OMAPLFB_DEVINFO *psDevInfo)
 			return OMAPLFB_FALSE;
 		}
 	}
+#endif
 #endif
 	return OMAPLFB_TRUE;
 #endif	/* defined(PVR_OMAPLFB_DRM_FB) */
@@ -948,10 +970,13 @@ static OMAPLFB_ERROR OMAPLFBBlankOrUnblankDisplay(OMAPLFB_DEVINFO *psDevInfo, IM
 {
 #ifdef FBDEV_PRESENT
 	int res;
+
+	OMAPLFB_CONSOLE_LOCK();
 	if (!lock_fb_info(psDevInfo->psLINFBInfo))
 	{
 		printk(KERN_ERR DRIVER_PREFIX
 		": %s: Device %u: Couldn't lock FB info\n", __FUNCTION__,  psDevInfo->uiFBDevID);
+		OMAPLFB_CONSOLE_UNLOCK();
 		return (OMAPLFB_ERROR_GENERIC);
 	}
 
@@ -961,13 +986,13 @@ static OMAPLFB_ERROR OMAPLFBBlankOrUnblankDisplay(OMAPLFB_DEVINFO *psDevInfo, IM
 	* notification.
 	*/
 
-	OMAPLFB_CONSOLE_LOCK();
 	psDevInfo->psLINFBInfo->flags |= FBINFO_MISC_USEREVENT;
 	res = fb_blank(psDevInfo->psLINFBInfo, bBlank ? 1 : 0);
 	psDevInfo->psLINFBInfo->flags &= ~FBINFO_MISC_USEREVENT;
 
-	OMAPLFB_CONSOLE_UNLOCK();
 	unlock_fb_info(psDevInfo->psLINFBInfo);
+	OMAPLFB_CONSOLE_UNLOCK();
+
 	if (res != 0 && res != -EINVAL)
 	{
 		printk(KERN_ERR DRIVER_PREFIX
