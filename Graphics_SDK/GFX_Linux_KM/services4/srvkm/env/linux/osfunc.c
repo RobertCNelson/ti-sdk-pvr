@@ -3605,7 +3605,11 @@ PVRSRV_ERROR OSAcquirePhysPageAddr(IMG_VOID *pvCPUVAddr,
     bMMapSemHeld = IMG_TRUE;
 
     /* Get page list */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0)
+    psInfo->iNumPagesMapped = get_user_pages(uStartAddr, psInfo->iNumPages, 1, 0, psInfo->ppsPages, NULL);
+#else
     psInfo->iNumPagesMapped = get_user_pages(current, current->mm, uStartAddr, psInfo->iNumPages, 1, 0, psInfo->ppsPages, NULL);
+#endif
 
     if (psInfo->iNumPagesMapped >= 0)
     {
