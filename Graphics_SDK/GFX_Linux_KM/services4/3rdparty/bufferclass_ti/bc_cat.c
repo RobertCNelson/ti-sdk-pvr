@@ -1108,8 +1108,13 @@ static long  bc_ioctl(struct file *file,
             bc_buf_ptr_t p;
             IMG_CPU_PHYADDR img_pa;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
+            if (raw_copy_from_user(&p, (void __user *)arg, sizeof(p)))
+                return -EFAULT;
+#else
             if (copy_from_user(&p, (void __user *)arg, sizeof(p)))
                 return -EFAULT;
+#endif
 
             if (p.index >= devinfo->ulNumBuffers || !p.pa)
                 return -EINVAL;
